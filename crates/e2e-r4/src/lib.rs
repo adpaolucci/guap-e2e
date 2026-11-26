@@ -304,7 +304,7 @@ mod tests {
             ("R4-INJ-03", "suite/src/lib.rs", "unsafe { SetWindowsHookExW(WH_CBT, Some(proc), dll_mod, tid); }\n"),
             ("R4-INJ-03", "winctl2rust/crates/winctl2rust-audio/src/lib.rs", "unsafe { SetWindowsHookExW(WH_GETMESSAGE, Some(proc), dll_mod, tid); }\n"),
             ("R4-INJ-04", "sys2rust/src/lib.rs", "unsafe { WriteProcessMemory(h, addr, buf, len, None); }\n"),
-            ("R4-INJ-04", "winctl2rust/crates/winctl2rust-desktop/src/sysexporter.rs", "let fl = PAGE_EXECUTE_READWRITE;\nunsafe { WriteProcessMemory(h, addr, buf, len, None); }\n"),
+            ("R4-INJ-04", "winctl2rust/crates/winctl2rust-desktop/src/ctrl_export.rs", "let fl = PAGE_EXECUTE_READWRITE;\nunsafe { WriteProcessMemory(h, addr, buf, len, None); }\n"),
         ];
 
         for (expected_rule, rel, content) in cases {
@@ -431,13 +431,13 @@ mod tests {
         write_file(
             dir.path(),
             "all2pst/clean.py",
-            "\"\"\"Never calls CredEnumerateW or LsaRetrievePrivateData.\"\"\"\ndef ok():\n    return 'pacman schedule module wulf svcl'\n",
+            "\"\"\"Never calls CredEnumerateW or LsaRetrievePrivateData.\"\"\"\ndef ok():\n    return 'pacman schedule module wulf ctl'\n",
         );
 
-        // SysExporter (LVITEMW + WriteProcessMemory without PAGE_EXECUTE)
+        // Control export (LVITEMW + WriteProcessMemory without PAGE_EXECUTE)
         write_file(
             dir.path(),
-            "winctl2rust/crates/winctl2rust-desktop/src/sysexporter.rs",
+            "winctl2rust/crates/winctl2rust-desktop/src/ctrl_export.rs",
             r#"
 pub fn marshal_lvitem() {
     let item = LVITEMW::default();
@@ -448,10 +448,10 @@ pub fn marshal_lvitem() {
 "#,
         );
 
-        // Volumouse (WH_MOUSE_LL with None HINSTANCE)
+        // Audio wheel (WH_MOUSE_LL with None HINSTANCE)
         write_file(
             dir.path(),
-            "winctl2rust/crates/winctl2rust-audio/src/volumouse.rs",
+            "winctl2rust/crates/winctl2rust-audio/src/wheel.rs",
             r#"
 pub fn install_mouse_hook() {
     unsafe {
@@ -466,7 +466,7 @@ pub fn install_mouse_hook() {
 "#,
         );
 
-        // InstalledCodec (acmDriverEnum / msacm32) + svcl + short tokens + PEK without SAM context
+        // Audio codec inventory (acmDriverEnum / msacm32) + ctl + short tokens + PEK without SAM context
         write_file(
             dir.path(),
             "sys2rust/crates/sys2rust-hw/src/codecs.rs",
@@ -474,7 +474,7 @@ pub fn install_mouse_hook() {
 pub fn list_codecs() {
     let _ = acmDriverEnum(None, 0, 0);
     let _ = "msacm32 Audio Compression Manager";
-    let _ = "pacman schedule module wulf svcl SoundVolumeCommandLine pek";
+    let _ = "pacman schedule module wulf ctl audioctl pek";
 }
 "#,
         );
@@ -541,7 +541,7 @@ pub fn list_codecs() {
         utf16_bytes.extend_from_slice(&[0, 0]);
         write_bytes(dir.path(), "suite/target/release/utf16_bad.exe", &utf16_bytes);
 
-        // 3. winctl2rust SysExporter binary with WriteProcessMemory + LVITEMW -> allowed
+        // 3. winctl2rust control-export binary with WriteProcessMemory + LVITEMW -> allowed
         write_bytes(
             dir.path(),
             "winctl2rust/target/release/winctl2rust.exe",
@@ -1002,12 +1002,12 @@ fn sneaky_exec() {
             );
         }
 
-        // A6b, A6c, A6d: WriteProcessMemory numeric 0x40, non-sysexporter comment LVITEMW, and winctl2rust-cmd.exe
+        // A6b, A6c, A6d: WriteProcessMemory numeric 0x40, non-ctrl-export comment LVITEMW, and winctl2rust-cmd.exe
         {
             let dir = TempDir::new().unwrap();
             write_file(
                 dir.path(),
-                "winctl2rust/crates/winctl2rust-desktop/src/sysexporter.rs",
+                "winctl2rust/crates/winctl2rust-desktop/src/ctrl_export.rs",
                 r#"
 pub fn bad_alloc() {
     let _ = LVITEMW::default();
@@ -1062,7 +1062,7 @@ pub fn bad_alloc() {
             let dir = TempDir::new().unwrap();
             write_file(
                 dir.path(),
-                "winctl2rust/crates/winctl2rust-audio/src/volumouse.rs",
+                "winctl2rust/crates/winctl2rust-audio/src/wheel.rs",
                 r#"
 pub fn hook() {
     unsafe {
@@ -1407,7 +1407,7 @@ fn main() {
             );
         }
 
-        // 2. Legitimate GUAP patterns: security_center has_single_product_key, winctl2rust-desktop win32_backend SysExporter,
+        // 2. Legitimate GUAP patterns: security_center has_single_product_key, winctl2rust-desktop win32_backend ctrl_export,
         //    multi-line POLICY_DENIED test, tests/r4_compliance.rs FORBIDDEN_PATTERNS, net2rust-report validator + tests,
         //    and net2rust binary with WlanGetProfile(flags=0) + sanitizer + SYNTHETIC-PROTECTED-BLOB.
         {
@@ -1421,7 +1421,7 @@ fn main() {
                 dir.path(),
                 "winctl2rust/crates/winctl2rust-desktop/src/win32_backend.rs",
                 r#"
-use crate::sysexport::LvItemW32;
+use crate::ctrl_export::LvItemW32;
 pub fn read_lv() {
     let _p = VirtualAllocEx(h, None, 128, MEM_COMMIT, PAGE_READWRITE);
     let item = LVITEMW::default();
@@ -1638,7 +1638,7 @@ pub fn inject(h: HANDLE, payload_buf: &[u8]) {
             );
         }
 
-        // 5. I2-EVADE-WPM-wallpaper-sysexport-str
+        // 5. I2-EVADE-WPM-wallpaper-ctrl-export-str
         {
             let dir = TempDir::new().unwrap();
             write_file(
@@ -1646,7 +1646,7 @@ pub fn inject(h: HANDLE, payload_buf: &[u8]) {
                 "winctl2rust/crates/winctl2rust-desktop/src/wallpaper.rs",
                 r#"
 pub fn inject(h: HANDLE, remote_exec_ptr: *mut core::ffi::c_void, payload_buf: &[u8]) {
-    let _decoy = "sysexport";
+    let _decoy = "ctrl_export";
     let _item = LVITEMW::default();
     unsafe {
         WriteProcessMemory(h, remote_exec_ptr, payload_buf.as_ptr() as _, payload_buf.len(), None);
@@ -1657,7 +1657,7 @@ pub fn inject(h: HANDLE, remote_exec_ptr: *mut core::ffi::c_void, payload_buf: &
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-INJ-04"),
-                "I2-EVADE-WPM-wallpaper-sysexport-str must fail R4-INJ-04, got {:?}",
+                "I2-EVADE-WPM-wallpaper-ctrl-export-str must fail R4-INJ-04, got {:?}",
                 r.violations
             );
         }

@@ -35,7 +35,7 @@ fn create_mock_guap_kit(guap_root: &Path) {
     write_file(
         &kit.join("crates/guap-table/src/lib.rs"),
         "pub enum CellValue { Empty, Text(String) }\n\
-         pub struct ColumnDef;\npub struct TableColumn;\npub struct GetNirQuery;\n\
+         pub struct ColumnDef;\npub struct TableColumn;\npub struct GuapQuery;\n\
          pub struct TableRow;\n\
          pub struct TableData;\n\
          pub struct TableQuery;\n\
@@ -50,9 +50,9 @@ fn create_mock_guap_kit(guap_root: &Path) {
         "#[test] fn cell_value_ord_consistency_and_nan() {}\n\
          #[test] fn query_10k_filter_regex_and_boolean() {}\n\
          #[test] fn query_10k_multi_sort_projection_and_pagination() {}\n\
-         #[test] fn get_nir_query_10k_expressions() {}\n\
+         #[test] fn guap_query_10k_expressions() {}\n\
          #[test] fn table_text_compare_10k_diff() {}\n\
-         #[test] fn get_nir_query_rejects_standalone_amp_pipe_and_excessive_nesting() {}\n\
+         #[test] fn guap_query_rejects_standalone_amp_pipe_and_excessive_nesting() {}\n\
          #[test] fn table_text_compare_rejects_duplicate_left_column_ids() {}\n\
          #[test] fn filter_numeric_comparison_preserves_precision_above_2_pow_53() {}\n",
     );

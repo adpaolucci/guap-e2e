@@ -205,7 +205,7 @@ fn scan_single_binary(
             stem_lower.as_str(),
             "winctl2rust" | "winctl2rust-win32" | "winctl2rust-iced" | "winctl2rust-mcp"
         ) || stem_lower.contains("desktop")
-            || stem_lower.contains("sysexporter"));
+            || stem_lower.contains("ctrl_export"));
     let is_debug_bin = path_norm_lower.contains("/debug/");
     let is_win32_gui_bin = stem_lower.ends_with("-win32");
     let is_sys2rust_bin = path_norm_lower.contains("sys2rust");
@@ -583,7 +583,7 @@ fn scan_single_binary(
                 path: bin_path.to_path_buf(),
                 line: None,
                 matched_symbol: sym,
-                detail: "WriteProcessMemory in binary outside permitted winctl2rust SysExporter LVITEMW/TVITEMW marshaling".to_string(),
+                detail: "WriteProcessMemory in binary outside permitted winctl2rust control-export LVITEMW/TVITEMW marshaling".to_string(),
             });
         }
     }

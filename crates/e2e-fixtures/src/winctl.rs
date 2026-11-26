@@ -62,7 +62,7 @@ pub fn generate_winctl_dir(winctl_dir: &Path) -> Result<()> {
     write_file_deterministic(&winctl_dir.join("monitor_edid.bin"), &build_valid_edid_256())?;
 
     let ncl = "\
-; GUAP winctl2rust-cmd NirCmd DSL fixture (offline dry-run safe)
+; GUAP winctl2rust-cmd Script DSL fixture (offline dry-run safe)
 speak text \"System audit complete\"
 clipboard set \"GUAP-CLIPBOARD-TEST\"
 mutesysvolume 0
@@ -73,7 +73,7 @@ wait 500
 beep 440 200
 win min class \"Notepad\"
 ";
-    write_file_deterministic(&winctl_dir.join("nircmd_script.ncl"), ncl.as_bytes())?;
+    write_file_deterministic(&winctl_dir.join("cmd_script.gcl"), ncl.as_bytes())?;
 
     let adv = serde_json::json!({
         "schema_version": 1,
@@ -146,9 +146,9 @@ pub fn verify_winctl_dir(winctl_dir: &Path) -> Result<(usize, Vec<String>)> {
     ensure!(edid[128] == 0x02 && sum1.is_multiple_of(256), "CEA-861 block 1 checksum failed");
     details.push("winctl/monitor_edid.bin: 256B EDID 1.4 + CEA-861 checksums verified".into());
 
-    let ncl = std::fs::read_to_string(winctl_dir.join("nircmd_script.ncl"))?;
-    ensure!(ncl.contains("mutesysvolume") && !ncl.contains("RunAsDate"), "bad nircmd_script.ncl");
-    details.push("winctl/nircmd_script.ncl: verified".into());
+    let ncl = std::fs::read_to_string(winctl_dir.join("cmd_script.gcl"))?;
+    ensure!(ncl.contains("mutesysvolume") && !ncl.contains("RunAsDate"), "bad cmd_script.gcl");
+    details.push("winctl/cmd_script.gcl: verified".into());
 
     let adv: serde_json::Value = serde_json::from_slice(&std::fs::read(winctl_dir.join("advanced_run_profile.json"))?)?;
     ensure!(adv["profiles"][0]["profile_name"] == "GuapOfflineToolCheck", "bad advanced_run_profile.json");

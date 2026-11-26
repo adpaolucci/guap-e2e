@@ -33,7 +33,7 @@ fn default_guap_root() -> PathBuf {
 #[command(
     name = "guap-e2e",
     version,
-    about = "Opaque-box E2E and R4 compliance runner for NirSoft-to-Rust GUAP suites"
+    about = "Opaque-box E2E and R4 compliance runner for GUAP Rust production suites"
 )]
 struct CliArgs {
     /// Tier(s) to run (1, 2, 3, or 4). May be repeated.
@@ -245,7 +245,7 @@ fn format_human_summary(report: &UnifiedE2eReport) -> String {
 fn format_test_ready_markdown(report: &UnifiedE2eReport) -> String {
     let mut md = String::new();
     let status = if report.overall_passed { "PASS (M6 GATE GREEN)" } else { "FAIL" };
-    md.push_str("# TEST_READY — NirSoft-to-Rust GUAP Production Suites (Phases 0–4)\n\n");
+    md.push_str("# TEST_READY — GUAP Rust Production Suites (Phases 0–4)\n\n");
     md.push_str(&format!("- **Status**: {status}\n"));
     md.push_str(&format!("- **Generated At**: `{}`\n", report.generated_at));
     md.push_str(&format!("- **Target Workspace Filter**: `{}`\n", report.target));

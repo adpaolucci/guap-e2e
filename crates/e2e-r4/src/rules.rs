@@ -70,11 +70,11 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
         },
-        // 2. All 27 prohibited NirSoft credential/password tools
+        // 2. All 27 prohibited credential/password recovery tools
         RuleDef {
             rule_id: "R4-CRED-02",
             category: "credential_tool",
-            description: "Prohibited NirSoft credential or password recovery tool",
+            description: "Prohibited credential or password recovery tool",
             kind: RuleKind::Standard,
             inner_pattern: concat!(
                 r"web[-_ ]?browser[-_ ]?pass[-_ ]?view|",
@@ -242,7 +242,7 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
         RuleDef {
             rule_id: "R4-INJ-04",
             category: "injection_api",
-            description: "Cross-process WriteProcessMemory (exempting SysExporter LVITEMW/TVITEMW marshaling)",
+            description: "Cross-process WriteProcessMemory (exempting control-export LVITEMW/TVITEMW marshaling)",
             kind: RuleKind::InjWriteProcessMemory,
             inner_pattern: r"write[-_ ]?process[-_ ]?memory",
             binary_inner_pattern: Some(r"write[-_ ]?process[-_ ]?memory"),
@@ -250,7 +250,7 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
         },
-        // 13..51. All 39 Retired Legacy NirSoft Tools (R4-LEGACY-01..39)
+        // 13..51. All 39 Retired Legacy Tools (R4-LEGACY-01..39)
         legacy_rule("R4-LEGACY-01", "IECacheView", r"ie[-_ ]?cache[-_ ]?view", None),
         legacy_rule("R4-LEGACY-02", "IEHistoryView", r"ie[-_ ]?history[-_ ]?view", None),
         legacy_rule("R4-LEGACY-03", "IECookiesView", r"ie[-_ ]?cookies[-_ ]?view", None),
@@ -266,7 +266,7 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
         RuleDef {
             rule_id: "R4-LEGACY-13",
             category: "legacy_tool",
-            description: "Retired legacy NirSoft tool: ActiveX Compatibility Manager (acm)",
+            description: "Retired legacy tool: ActiveX Compatibility Manager (acm)",
             kind: RuleKind::LegacyAcm,
             inner_pattern: r"active[-_ ]?x[-_ ]?compatibility[-_ ]?manager|acm",
             binary_inner_pattern: Some(r"active[-_ ]?x[-_ ]?compatibility[-_ ]?manager|acm\.exe|--acm"),
@@ -2026,8 +2026,7 @@ fn should_skip_benign_match(
             || line_lower.contains("command_id")
             || line_lower.contains("\"name\"")
             || line_lower.contains("pass")
-            || line_lower.contains("dump")
-            || line_lower.contains("nirsoft");
+            || line_lower.contains("dump");
         if is_header_parser && !is_cmd_or_cred {
             return true;
         }

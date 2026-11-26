@@ -1395,9 +1395,9 @@ fn scan_rust_file(
         file_code_only.push('\n');
     }
 
-    let is_winctl_sysexporter = in_winctl2rust
-        && (rel_lower.ends_with("/sysexporter.rs")
-            || rel_lower == "sysexporter.rs"
+    let is_winctl_ctrl_export = in_winctl2rust
+        && (rel_lower.ends_with("/ctrl_export.rs")
+            || rel_lower == "ctrl_export.rs"
             || (rel_lower.ends_with("winctl2rust-desktop/src/win32_backend.rs")
                 && (file_code_only.contains("LVM_GETITEM")
                     || file_code_only.contains("TVM_GETITEM"))));
@@ -1805,19 +1805,19 @@ fn scan_rust_file(
                     }
                 }
                 RuleKind::InjWriteProcessMemory => {
-                    let is_safe_sysexporter = !span.is_comment
+                    let is_safe_ctrl_export = !span.is_comment
                         && !span.is_string
-                        && is_winctl_sysexporter
+                        && is_winctl_ctrl_export
                         && file_has_wpm_struct_code
                         && !file_has_wpm_exec;
-                    if !is_safe_sysexporter {
+                    if !is_safe_ctrl_export {
                         violations.push(R4Violation {
                             category: rule.def.category.to_string(),
                             rule_id: rule.def.rule_id.to_string(),
                             path: path.to_path_buf(),
                             line: Some(line_no),
                             matched_symbol: matched,
-                            detail: "WriteProcessMemory outside permitted winctl2rust-desktop SysExporter LVITEMW/TVITEMW marshaling".to_string(),
+                            detail: "WriteProcessMemory outside permitted winctl2rust-desktop control-export LVITEMW/TVITEMW marshaling".to_string(),
                         });
                     }
                 }

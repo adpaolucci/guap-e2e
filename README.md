@@ -7,7 +7,7 @@ Part of the **GUAP** Ecosystem (`guap.ca`) • [**Ecosystem Hub: https://guap.ca
 [![Workspace: 4 Crates](https://img.shields.io/badge/Workspace-4%20Crates-emerald.svg)](Cargo.toml)
 [![Verification Gate: 360/360 Checks](https://img.shields.io/badge/M6%20Gate-360%2F360%20Passed-brightgreen.svg)](crates/e2e-tiers/src/catalog.rs)
 
-**`guap-e2e`** is the standalone cross-workspace verification harness for the GUAP NirSoft-to-Rust production suites (`guap-kit`, `forensics2rust`, `chrome2rust`, `mail2rust`, `android2rust`, `winctl2rust`, `net2rust`, `sys2rust`, and `fs2rust`). It deterministically materializes **79 valid and corrupt binary fixtures**, executes **360 opaque-box checks across Tiers 1–4** spanning **31 feature groups** and **227 cataloged items**, runs a **52-rule automated R4 exclusion/security scanner** across source trees, Rust ASTs, compiled PE binaries, CLIs, and MCP servers, and emits signed verification artifacts (`TEST_READY.md` & JSON reports).
+**`guap-e2e`** is the standalone cross-workspace verification harness for the GUAP pure-Rust production suites (`guap-kit`, `forensics2rust`, `chrome2rust`, `mail2rust`, `android2rust`, `winctl2rust`, `net2rust`, `sys2rust`, and `fs2rust`). It deterministically materializes **79 valid and corrupt binary fixtures**, executes **360 opaque-box checks across Tiers 1–4** spanning **31 feature groups** and **227 cataloged items**, runs a **52-rule automated R4 exclusion/security scanner** across source trees, Rust ASTs, compiled PE binaries, CLIs, and MCP servers, and emits signed verification artifacts (`TEST_READY.md` & JSON reports).
 
 ---
 
@@ -37,7 +37,7 @@ Every fixture is generated deterministically in code with valid checksums, magic
 - **Windows Artifacts (`artifacts/`)**: Uncompressed `SCCA v30` Prefetch, compressed `MAM\x04` Prefetch, `[MS-SHLLINK]` `.lnk`, `CFBF` + `DestList v4` `.automaticDestinations-ms`, `setupapi.dev.log`
 - **Crash & Posture (`crash/`)**: `MDMP` 4-stream `memory.dmp`, UTF-16LE `Report.wer`, `CBS.log`, `wmi_posture.json`
 - **Browser & Media (`browser/`)**: EXIF `II*\0` JPEG, `fMP4`/`m4s` segments, Firefox `cache2`/`places.sqlite`/`cookies.sqlite`/`formhistory.sqlite`/`.jsonlz4`, Safari `Cache.db`/`History.db`/`Bookmarks.plist`, Opera `dcache4.url`/SimpleCache
-- **Mail, WPD, Winctl & Net (`mail/`, `wpd/`, `winctl/`, `net/`)**: `outlook.NK2`, MS-CFB `sample_attachment.msg`, EML, `wpd_device_tree.json`, 256B VESA EDID 1.4 + CEA-861, NirCmd/AdvancedRun/Audio mocks, 13-packet IPv4+L4 checksummed PCAP, 802.11 RadioTap beacon PCAP, WLAN/BLE mock JSON
+- **Mail, WPD, Winctl & Net (`mail/`, `wpd/`, `winctl/`, `net/`)**: `outlook.NK2`, MS-CFB `sample_attachment.msg`, EML, `wpd_device_tree.json`, 256B VESA EDID 1.4 + CEA-861, Script/Launch/Audio mocks, 13-packet IPv4+L4 checksummed PCAP, 802.11 RadioTap beacon PCAP, WLAN/BLE mock JSON
 - **PE/.NET & Filesystem (`sys_fs/`)**: PE32 DLL with exports & 3-level `.rsrc`, PE32+ `.NET` EXE (`BSJB` `#~`), `usnjrnl_j.bin` (`USN_RECORD_V2`), mod-256 checksummed ATA SMART `.bin`, CSV/TSV/HTML/VCF/JSONL vectors (including formula-injection probes)
 - **Negative / Corrupt (`corrupt_dir/`)**: 14 malformed/truncated SQLite, NK2, `.jsonlz4`, `.plist`, PE, EDID, PCAP, EXIF, ATA SMART, and `$UsnJrnl` binaries
 
@@ -59,7 +59,7 @@ Every fixture is generated deterministically in code with valid checksums, magic
 Scans all GUAP repositories across 5 surfaces and fails closed on any prohibited pattern:
 - **Credentials & Plaintext Keys (`R4-CRED-01..02`, `R4-API-CRED-01..06`)**: Blocks `cred2rust`, password/secret dumping, `CryptUnprotectData`, `VaultEnumerateItems`, `CredEnumerateW`, `LsaRetrievePrivateData`, `WLAN_PROFILE_GET_PLAINTEXT_KEY` (`0x0000_0004`), and unredacted `<keyMaterial>`.
 - **Injection & Hooking (`R4-INJ-01..04`)**: Blocks `CreateRemoteThread`, `NtCreateThreadEx`, `QueueUserAPC`, external-DLL `SetWindowsHookExW`, Detours/minhook/IAT patching, and `RunAsDate`.
-- **Retired Legacy Tools (`R4-LEGACY-01..39`)**: Verifies zero overlap with the 39 retired legacy NirSoft utilities.
+- **Retired Legacy Tools (`R4-LEGACY-01..39`)**: Verifies zero overlap with the 39 retired legacy Windows utilities.
 - **5 Inspection Surfaces**: Filesystem & Cargo dependencies (`surface_fs`), `syn` Rust AST taint analysis (`rust_ast`), compiled PE/DLL `ASCII` + `UTF-16LE` string scans (`surface_bin`), CLI subcommand probing, and MCP tool schema/callout probing (`surface_cli_mcp`), while documenting pre-existing classification-only `R4-BASELINE-CHROME` files.
 
 ---

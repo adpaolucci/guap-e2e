@@ -509,7 +509,7 @@ fn run_guap_kit_contract_scan(
             "pub trait TableProvider",
             "pub struct ColumnDef",
             "pub enum CellValue",
-            "pub struct GetNirQuery",
+            "pub struct GuapQuery",
             "pub struct TableTextCompare",
         ],
         "guap-export" => &[
@@ -678,7 +678,7 @@ fn run_guap_kit_boundary(
     let fg = fg_for_check(chk)?;
     let (args, min_passed): (&[&str], usize) = match (fg.domain_crate, tag) {
         ("guap-table", "empty_schema") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "table_text_compare_rejects_duplicate_left_column_ids"], 1),
-        ("guap-table", "invalid_query") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "get_nir_query_rejects_standalone_amp_pipe_and_excessive_nesting"], 1),
+        ("guap-table", "invalid_query") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "guap_query_rejects_standalone_amp_pipe_and_excessive_nesting"], 1),
         ("guap-table", "injection_escape") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "filter_numeric_comparison_preserves_precision_above_2_pow_53"], 1),
         ("guap-table", "missing_or_headless") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "cell_value_ord_consistency_and_nan"], 1),
         ("guap-table", "rpc_policy_boundary") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k"], 8),
@@ -1522,8 +1522,8 @@ fn build_mutating_args(spec: MutatingActionSpec, fixture_path: &Path) -> Value {
         MutatingArgsKind::SysShellPrivacyClean => json!({ "categories": ["Temp"] }),
         MutatingArgsKind::FsBulkTargets => json!({ "targets": [f_str] }),
         MutatingArgsKind::FsAdsDelete => json!({ "file_path": f_str, "stream_name": "Zone.Identifier" }),
-        MutatingArgsKind::WinctlNirCmd => json!({ "script": "beep 440 100" }),
-        MutatingArgsKind::WinctlAudioSvcl => json!({ "verb": "SetVolume", "target": "Speakers", "args": ["50"] }),
+        MutatingArgsKind::WinctlCmdScript => json!({ "script": "beep 440 100" }),
+        MutatingArgsKind::WinctlAudioCtl => json!({ "verb": "SetVolume", "target": "Speakers", "args": ["50"] }),
         MutatingArgsKind::WinctlDisplayDdc => json!({ "monitor": "DISPLAY1", "vcp_code": 16, "value": 50 }),
         MutatingArgsKind::WinctlDesktopClip => json!({ "operation": "clear" }),
         MutatingArgsKind::NetOsintSetDns => {
@@ -3259,7 +3259,7 @@ fn run_tier3_pairwise(
                 "T3-01" => {
                     let n1 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "get_nir_query_10k_expressions"],
+                        &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "guap_query_10k_expressions"],
                         1,
                     )?;
                     let n2 = run_guap_kit_cargo_test_checked(
@@ -3267,7 +3267,7 @@ fn run_tier3_pairwise(
                         &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "query_10k"],
                         2,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-01 guap-table GetNir & query tests passed ({n1}+{n2})")))
+                    Ok(CheckOutcome::Pass(format!("T3-01 guap-table GuapQuery & query tests passed ({n1}+{n2})")))
                 }
                 "T3-02" => {
                     let n = run_guap_kit_cargo_test_checked(
@@ -3507,7 +3507,7 @@ fn run_tier4_scenario(
             if session.resolve_binary(TargetWorkspace::Fs2Rust)?.is_some() {
                 let fg28 = find_feature_group("FG-28").context("missing FG-28")?;
                 let _ = verify_suite_export_and_custody(fg28, 5, cfg, session)?;
-                extra_note.push_str(" + fs2rust HashMyFiles custody");
+                extra_note.push_str(" + fs2rust hash_files custody");
             } else {
                 extra_note.push_str(" (fs2rust secondary binary unbuilt)");
             }
@@ -3630,16 +3630,16 @@ pub/* outer /* inner */ */enum CellValue {}
             assert_eq!(&p4[24..28], &2u32.to_le_bytes());
         }
 
-        let svcl = build_mutating_args(
+        let ctl = build_mutating_args(
             MutatingActionSpec {
-                tool_id: "audio_svcl",
-                args_kind: MutatingArgsKind::WinctlAudioSvcl,
+                tool_id: "audio_ctl",
+                args_kind: MutatingArgsKind::WinctlAudioCtl,
                 cli_supports_allow_mutating: true,
             },
             Path::new("dummy"),
         );
-        assert_eq!(svcl["verb"], "SetVolume");
-        assert_eq!(svcl["target"], "Speakers");
+        assert_eq!(ctl["verb"], "SetVolume");
+        assert_eq!(ctl["target"], "Speakers");
 
         let clip = build_mutating_args(
             MutatingActionSpec {

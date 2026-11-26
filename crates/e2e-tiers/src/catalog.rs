@@ -1,0 +1,716 @@
+use std::collections::BTreeSet;
+use std::sync::LazyLock;
+
+use anyhow::ensure;
+
+use crate::model::{
+    CatalogCheckDef, CheckKind, CliExportStyle, CliInputStyle, CliLiveStyle, FeatureGroupDef,
+    FixtureKind, ItemSpec, McpArgsKind, MutatingActionSpec, MutatingArgsKind, TargetWorkspace,
+    Tier,
+};
+
+macro_rules! item {
+    ($name:expr, $group_id:expr, $workspace:expr, $cli_tokens:expr, $mcp_tool:expr, $fixture_kind:expr, $fixture_rel:expr, $corrupt_rel:expr, $mutating:expr, $cli_input:expr, $mcp_args:expr, $nonempty:expr) => {
+        ItemSpec {
+            name: $name,
+            group_id: $group_id,
+            workspace: $workspace,
+            cli_tokens: $cli_tokens,
+            mcp_tool: $mcp_tool,
+            fixture_kind: $fixture_kind,
+            fixture_rel: $fixture_rel,
+            corrupt_rel: $corrupt_rel,
+            mutating_capable: $mutating,
+            cli_input: $cli_input,
+            mcp_args: $mcp_args,
+            expects_nonempty_rows: $nonempty,
+        }
+    };
+}
+
+pub fn is_legacy_no_annotations_tool(ws: TargetWorkspace, tool_name: &str) -> bool {
+    match ws {
+        TargetWorkspace::Chrome2Rust => matches!(
+            tool_name,
+            "chrome2rust_profiles"
+                | "chrome2rust_sniff"
+                | "chrome2rust_cache_list"
+                | "chrome2rust_cache_inspect"
+                | "chrome2rust_cache_extract"
+                | "chrome2rust_analyze"
+                | "chrome2rust_report"
+                | "chrome2rust_custody"
+        ),
+        TargetWorkspace::Android2Rust => matches!(
+            tool_name,
+            "android2rust_environment"
+                | "android2rust_presets"
+                | "android2rust_build_command"
+                | "android2rust_parse_command"
+                | "android2rust_decode_status"
+                | "android2rust_profiles"
+                | "android2rust_inspect_artifact"
+                | "android2rust_dry_run"
+                | "android2rust_run"
+                | "android2rust_report"
+        ),
+        _ => false,
+    }
+}
+
+static FG01_ITEMS: &[ItemSpec] = &[item!("guap-table", "FG-01", TargetWorkspace::GuapKit, &[], "guap_table", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::InputFlag, McpArgsKind::EmptyObject, true)];
+static FG02_ITEMS: &[ItemSpec] = &[item!("guap-export", "FG-02", TargetWorkspace::GuapKit, &[], "guap_export", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::InputFlag, McpArgsKind::EmptyObject, true)];
+static FG03_ITEMS: &[ItemSpec] = &[item!("guap-gui-win32", "FG-03", TargetWorkspace::GuapKit, &[], "guap_gui_win32", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::InputFlag, McpArgsKind::EmptyObject, true)];
+static FG04_ITEMS: &[ItemSpec] = &[item!("guap-gui-iced", "FG-04", TargetWorkspace::GuapKit, &[], "guap_gui_iced", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::InputFlag, McpArgsKind::EmptyObject, true)];
+static FG05_ITEMS: &[ItemSpec] = &[item!("guap-mcp", "FG-05", TargetWorkspace::GuapKit, &[], "guap_mcp", FixtureKind::SysFs, "sample_data.csv", None, true, CliInputStyle::InputFlag, McpArgsKind::EmptyObject, true)];
+
+static FG06_ITEMS: &[ItemSpec] = &[
+    item!("FullEventLogView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "all"], "evtx.all", FixtureKind::Evtx, "Security.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("MyEventViewer", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "legacy"], "evtx.legacy", FixtureKind::Evtx, "System.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("EventLogChannelsView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "channels"], "evtx.channels", FixtureKind::Evtx, "Security.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("EventLogSourcesView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "sources"], "evtx.sources", FixtureKind::Evtx, "System.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("WinLogOnView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "logon"], "evtx.logon", FixtureKind::Evtx, "Security.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("TurnedOnTimesView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "uptime"], "evtx.uptime", FixtureKind::Evtx, "System.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("WifiHistoryView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "wifi"], "evtx.wifi", FixtureKind::Evtx, "Microsoft-Windows-WLAN-AutoConfig%4Operational.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("WinDefLogView", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "defender"], "evtx.defender", FixtureKind::Evtx, "Microsoft-Windows-Windows Defender%4Operational.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("ComputerTimeLine", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "timeline"], "evtx.timeline", FixtureKind::Evtx, "Security.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("evtx rdp", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "rdp"], "evtx.rdp", FixtureKind::Evtx, "Microsoft-Windows-TerminalServices-RemoteConnectionManager%4Operational.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("evtx powershell", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "powershell"], "evtx.powershell", FixtureKind::Evtx, "Microsoft-Windows-PowerShell%4Operational.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("evtx process", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "process"], "evtx.process", FixtureKind::Evtx, "Security.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("evtx tasks", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "tasks"], "evtx.tasks", FixtureKind::Evtx, "Microsoft-Windows-TaskScheduler%4Operational.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("evtx usb", "FG-06", TargetWorkspace::Forensics2Rust, &["evtx", "usb"], "evtx.usb", FixtureKind::Evtx, "Microsoft-Windows-Kernel-PnP%4Configuration.evtx", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+];
+
+static FG07_ITEMS: &[ItemSpec] = &[
+    item!("RegScanner", "FG-07", TargetWorkspace::Forensics2Rust, &["hive", "scan"], "hive.scan", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("RegistryChangesView", "FG-07", TargetWorkspace::Forensics2Rust, &["hive", "diff"], "hive.diff", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::ForensicsDiff, McpArgsKind::ForensicsDiff, true),
+    item!("OfflineRegistryView", "FG-07", TargetWorkspace::Forensics2Rust, &["hive", "offline"], "hive.offline", FixtureKind::Hive, "SYSTEM", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("OfflineRegistryFinder", "FG-07", TargetWorkspace::Forensics2Rust, &["hive", "find"], "hive.find", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("RegFileExport", "FG-07", TargetWorkspace::Forensics2Rust, &["hive", "export"], "hive.export", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("RegFromApp", "FG-07", TargetWorkspace::Forensics2Rust, &["hive", "watch"], "hive.watch", FixtureKind::Hive, "staged_watch.reg", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+];
+
+static FG08_ITEMS: &[ItemSpec] = &[
+    item!("ESEDatabaseView", "FG-08", TargetWorkspace::Forensics2Rust, &["srum", "db"], "srum.db", FixtureKind::Srum, "staged_SRUDB.dat", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("NetworkUsageView", "FG-08", TargetWorkspace::Forensics2Rust, &["srum", "net"], "srum.net", FixtureKind::Srum, "staged_SRUDB.dat", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("SRUM App Resource View", "FG-08", TargetWorkspace::Forensics2Rust, &["srum", "app"], "srum.app", FixtureKind::Srum, "staged_SRUDB.dat", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("SRUM Energy/Connectivity View", "FG-08", TargetWorkspace::Forensics2Rust, &["srum", "energy"], "srum.energy", FixtureKind::Srum, "staged_SRUDB.dat", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+];
+
+static FG09_ITEMS: &[ItemSpec] = &[
+    item!("LastActivityView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "activity"], "artifacts.activity", FixtureKind::Artifacts, "DEMO_UNCOMPRESSED-1234ABCD.pf", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("WinPrefetchView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "prefetch"], "artifacts.prefetch", FixtureKind::Artifacts, "DEMO_COMPRESSED-5678EF01.pf", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("JumpListsView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "jumplists"], "artifacts.jumplists", FixtureKind::Artifacts, "1b4dd67f29cb1962.automaticDestinations-ms", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("ShellBagsView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "shellbags"], "artifacts.shellbags", FixtureKind::Hive, "UsrClass.dat", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("UserAssistView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "userassist"], "artifacts.userassist", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("MUICacheView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "muicache"], "artifacts.muicache", FixtureKind::Hive, "UsrClass.dat", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("OpenSaveFilesView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "opensave"], "artifacts.opensave", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("RecentFilesView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "recent"], "artifacts.recent", FixtureKind::Artifacts, "ForensicsSample.lnk", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("ExecutedProgramsList", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "executed"], "artifacts.executed", FixtureKind::Artifacts, "DEMO_UNCOMPRESSED-1234ABCD.pf", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("USBDeview", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "usb-devices"], "artifacts.usb_devices", FixtureKind::Hive, "SYSTEM", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("USBLogView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "usb-log"], "artifacts.usb_log", FixtureKind::Artifacts, "setupapi.dev.log", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("ShadowCopyView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "vss"], "artifacts.vss", FixtureKind::Artifacts, "staged_vss_catalog.json", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("PreviousFilesRecovery", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "previous"], "artifacts.previous", FixtureKind::Artifacts, "staged_previous_dir", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("UserProfilesView", "FG-09", TargetWorkspace::Forensics2Rust, &["artifacts", "profiles"], "artifacts.profiles", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+];
+
+static FG10_ITEMS: &[ItemSpec] = &[
+    item!("BlueScreenView", "FG-10", TargetWorkspace::Forensics2Rust, &["crash", "bsod"], "crash.bsod", FixtureKind::Crash, "memory.dmp", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("AppCrashView", "FG-10", TargetWorkspace::Forensics2Rust, &["crash", "wer"], "crash.wer", FixtureKind::Crash, "Report.wer", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("WinCrashReport", "FG-10", TargetWorkspace::Forensics2Rust, &["crash", "report"], "crash.report", FixtureKind::Crash, "memory.dmp", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+];
+
+static FG11_ITEMS: &[ItemSpec] = &[
+    item!("WinUpdatesView", "FG-11", TargetWorkspace::Forensics2Rust, &["posture", "updates"], "posture.updates", FixtureKind::Srum, "staged_DataStore.edb", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("FullUpdatesHistoryView", "FG-11", TargetWorkspace::Forensics2Rust, &["posture", "full-updates"], "posture.full_updates", FixtureKind::Crash, "CBS.log", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("Defender Posture View", "FG-11", TargetWorkspace::Forensics2Rust, &["posture", "defender-status"], "posture.defender_status", FixtureKind::Crash, "wmi_posture.json", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+    item!("Security Software Posture View", "FG-11", TargetWorkspace::Forensics2Rust, &["posture", "security-center"], "posture.security_center", FixtureKind::Crash, "staged_security_center2.json", None, false, CliInputStyle::Flag("--source"), McpArgsKind::SourcePath, true),
+];
+
+static FG12_ITEMS: &[ItemSpec] = &[
+    item!("MZCacheView", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "cache"], "chrome2rust_fx_cache", FixtureKind::Browser, "firefox/profile_default/cache2/entries/9A8D5840F18568953C02D4964FF363E6A7BE0293", Some("bad_magic.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, false),
+    item!("MZHistoryView", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "history"], "chrome2rust_fx_history", FixtureKind::Browser, "firefox/profile_default/places.sqlite", Some("bad_magic.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("MZCookiesView", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "cookies"], "chrome2rust_fx_cookies", FixtureKind::Browser, "firefox/profile_default/cookies.sqlite", Some("truncated.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("fx bookmarks", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "bookmarks"], "chrome2rust_fx_bookmarks", FixtureKind::Browser, "firefox/profile_default/places.sqlite", Some("bad_mozlz4.jsonlz4"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("fx downloads", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "downloads"], "chrome2rust_fx_downloads", FixtureKind::Browser, "firefox/profile_default/places.sqlite", Some("truncated.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("fx formhistory", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "formhistory"], "chrome2rust_fx_formhistory", FixtureKind::Browser, "firefox/profile_default/formhistory.sqlite", Some("bad_magic.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("fx addons", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "addons"], "chrome2rust_fx_addons", FixtureKind::Browser, "firefox/profile_default/addons.json", None, false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("fx sessions", "FG-12", TargetWorkspace::Chrome2Rust, &["fx", "sessions"], "chrome2rust_fx_sessions", FixtureKind::Browser, "firefox/profile_default/sessionstore.jsonlz4", Some("bad_mozlz4.jsonlz4"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("OperaCacheView", "FG-12", TargetWorkspace::Chrome2Rust, &["opera", "cache"], "chrome2rust_opera_cache", FixtureKind::Browser, "opera/opcache/dcache4.url", None, false, CliInputStyle::Positional, McpArgsKind::Path, false),
+    item!("opera history", "FG-12", TargetWorkspace::Chrome2Rust, &["opera", "history"], "chrome2rust_opera_history", FixtureKind::Browser, "opera/Cache/Cache_Data/1122334455667788_0", None, false, CliInputStyle::Positional, McpArgsKind::Path, false),
+    item!("SafariCacheView", "FG-12", TargetWorkspace::Chrome2Rust, &["safari", "cache"], "chrome2rust_safari_cache", FixtureKind::Browser, "safari/Cache.db", Some("bad_magic.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("SafariHistoryView", "FG-12", TargetWorkspace::Chrome2Rust, &["safari", "history"], "chrome2rust_safari_history", FixtureKind::Browser, "safari/History.db", Some("truncated.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("safari bookmarks", "FG-12", TargetWorkspace::Chrome2Rust, &["safari", "bookmarks"], "chrome2rust_safari_bookmarks", FixtureKind::Browser, "safari/Bookmarks.plist", Some("bad_bplist.plist"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("BrowsingHistoryView", "FG-12", TargetWorkspace::Chrome2Rust, &["unified", "history"], "chrome2rust_unified_history", FixtureKind::Browser, "firefox/profile_default/places.sqlite", Some("bad_magic.sqlite"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("BrowserDownloadsView", "FG-12", TargetWorkspace::Chrome2Rust, &["unified", "downloads"], "chrome2rust_unified_downloads", FixtureKind::Browser, "firefox/profile_default/places.sqlite", None, false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("BrowserAddonsView", "FG-12", TargetWorkspace::Chrome2Rust, &["unified", "addons"], "chrome2rust_unified_addons", FixtureKind::Browser, "firefox/profile_default/extensions.json", None, false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("WebBrowserBookmarksView", "FG-12", TargetWorkspace::Chrome2Rust, &["unified", "bookmarks"], "chrome2rust_unified_bookmarks", FixtureKind::Browser, "safari/Bookmarks.plist", Some("bad_bplist.plist"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("unified autofill", "FG-12", TargetWorkspace::Chrome2Rust, &["unified", "autofill"], "chrome2rust_unified_autofill", FixtureKind::Browser, "firefox/profile_default/formhistory.sqlite", None, false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("MyLastSearch", "FG-12", TargetWorkspace::Chrome2Rust, &["search-queries"], "chrome2rust_search_queries", FixtureKind::Browser, "firefox/profile_default/places.sqlite", None, false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("ImageCacheViewer", "FG-12", TargetWorkspace::Chrome2Rust, &["carve", "images"], "chrome2rust_carve_images", FixtureKind::Browser, "media/sample_exif.jpg", Some("bad_exif.jpg"), false, CliInputStyle::Positional, McpArgsKind::Path, false),
+    item!("VideoCacheView", "FG-12", TargetWorkspace::Chrome2Rust, &["carve", "video"], "chrome2rust_carve_video", FixtureKind::Browser, "media/sample_fmp4.mp4", None, false, CliInputStyle::Positional, McpArgsKind::Path, false),
+];
+
+static FG13_ITEMS: &[ItemSpec] = &[
+    item!("NK2Edit", "FG-13", TargetWorkspace::Mail2Rust, &["nk2", "inspect"], "mail2rust_nk2_inspect", FixtureKind::Mail, "outlook.NK2", Some("bad_nk2.nk2"), false, CliInputStyle::Positional, McpArgsKind::Path, true),
+    item!("OutlookAttachView", "FG-13", TargetWorkspace::Mail2Rust, &["outlook", "attach"], "mail2rust_outlook_attach", FixtureKind::Mail, "sample_attachment.msg", None, false, CliInputStyle::Positional, McpArgsKind::Source, true),
+    item!("OutlookStatView", "FG-13", TargetWorkspace::Mail2Rust, &["outlook", "stats"], "mail2rust_outlook_stats", FixtureKind::Mail, "sample_attachment.eml", None, false, CliInputStyle::Positional, McpArgsKind::Source, true),
+    item!("OutlookAddressBookView", "FG-13", TargetWorkspace::Mail2Rust, &["outlook", "contacts"], "mail2rust_outlook_contacts", FixtureKind::Mail, "outlook.NK2", Some("bad_nk2.nk2"), false, CliInputStyle::Positional, McpArgsKind::Source, true),
+    item!("OfficeIns", "FG-13", TargetWorkspace::Mail2Rust, &["office", "addins", "list"], "mail2rust_office_addins", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::Flag("--hive"), McpArgsKind::HiveList, false),
+];
+
+static FG14_ITEMS: &[ItemSpec] = &[
+    item!("MobileFileSearch", "FG-14", TargetWorkspace::Android2Rust, &["mtp", "search"], "android2rust_mobile_file_search", FixtureKind::Wpd, "wpd_device_tree.json", None, false, CliInputStyle::SourceDirParent, McpArgsKind::SourceDirParent, true),
+];
+
+static FG15_ITEMS: &[ItemSpec] = &[
+    item!("NirCmd", "FG-15", TargetWorkspace::Winctl2Rust, &["cmd", "nircmd"], "cmd_nircmd_preview", FixtureKind::Winctl, "nircmd_script.ncl", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("AdvancedRun", "FG-15", TargetWorkspace::Winctl2Rust, &["cmd", "run"], "cmd_run_profiles", FixtureKind::Winctl, "advanced_run_profile.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("RunFromProcess", "FG-15", TargetWorkspace::Winctl2Rust, &["cmd", "from-proc"], "cmd_from_proc_candidates", FixtureKind::Winctl, "advanced_run_profile.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("AtNow", "FG-15", TargetWorkspace::Winctl2Rust, &["cmd", "atnow"], "cmd_atnow_tasks", FixtureKind::Winctl, "advanced_run_profile.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+];
+
+static FG16_ITEMS: &[ItemSpec] = &[
+    item!("SoundVolumeView", "FG-16", TargetWorkspace::Winctl2Rust, &["audio", "view"], "audio_view", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("SoundVolumeCommandLine", "FG-16", TargetWorkspace::Winctl2Rust, &["audio", "svcl"], "audio_svcl_status", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("AppAudioConfig", "FG-16", TargetWorkspace::Winctl2Rust, &["audio", "app-config"], "audio_app_config", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("Volumouse", "FG-16", TargetWorkspace::Winctl2Rust, &["audio", "volumouse"], "audio_volumouse_rules", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+];
+
+static FG17_ITEMS: &[ItemSpec] = &[
+    item!("MultiMonitorTool", "FG-17", TargetWorkspace::Winctl2Rust, &["display", "monitors"], "display_monitors", FixtureKind::Winctl, "monitor_edid.bin", Some("bad_edid_checksum.bin"), false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("ControlMyMonitor", "FG-17", TargetWorkspace::Winctl2Rust, &["display", "ddc"], "display_ddc_vcp", FixtureKind::Winctl, "audio_mccs_mock.json", Some("bad_edid_checksum.bin"), false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("MonitorInfoView", "FG-17", TargetWorkspace::Winctl2Rust, &["display", "info"], "display_info", FixtureKind::Winctl, "monitor_edid.bin", Some("truncated_edid.bin"), false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("DumpEDID", "FG-17", TargetWorkspace::Winctl2Rust, &["display", "edid"], "display_edid", FixtureKind::Winctl, "monitor_edid.bin", Some("truncated_edid.bin"), false, CliInputStyle::Flag("--file"), McpArgsKind::EmptyObject, true),
+];
+
+static FG18_ITEMS: &[ItemSpec] = &[
+    item!("GUIPropView", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "props"], "desktop_props", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("WinLister", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "windows"], "desktop_windows", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("WinExplorer", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "tree"], "desktop_tree", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("SysExporter", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "sysexport"], "desktop_sysexport", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, false),
+    item!("InsideClipboard", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "clipboard"], "desktop_clipboard", FixtureKind::Winctl, "nircmd_script.ncl", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("Clipboardic", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "clip-hist"], "desktop_clip_hist", FixtureKind::Winctl, "nircmd_script.ncl", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, false),
+    item!("HotKeysList", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "hotkeys"], "desktop_hotkeys", FixtureKind::Artifacts, "ForensicsSample.lnk", None, false, CliInputStyle::Flag("--lnk"), McpArgsKind::EmptyObject, true),
+    item!("KeyboardStateView", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "keys"], "desktop_keys", FixtureKind::Winctl, "nircmd_script.ncl", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("WinFontsView", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "fonts"], "desktop_fonts", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+    item!("WebCamImageSave", "FG-18", TargetWorkspace::Winctl2Rust, &["desktop", "webcam"], "desktop_webcam", FixtureKind::Winctl, "audio_mccs_mock.json", None, false, CliInputStyle::OmitPath, McpArgsKind::EmptyObject, true),
+];
+static FG19_ITEMS: &[ItemSpec] = &[
+    item!("CurrPorts", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "ports"], "sockets.ports", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("TcpLogView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "tcplog"], "sockets.tcplog", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("LiveTcpUdpWatch", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "live"], "sockets.live", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("AppNetworkCounter", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "app-net"], "sockets.app-net", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ProcessTCPSummary", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "proc-tcp"], "sockets.proc-tcp", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("TCPConnectProblemView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "tcp-errors"], "sockets.tcp-errors", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DNSLookupView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "dns-log"], "sockets.dns-log", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetworkCountersWatch", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "counters"], "sockets.counters", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("AdapterWatch", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "adapter-watch"], "sockets.adapter-watch", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetworkInterfacesView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "interfaces"], "sockets.interfaces", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetRouteView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "routes"], "sockets.routes", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("IPNeighborsView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "neighbors"], "sockets.neighbors", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("IPPathTableView", "FG-19", TargetWorkspace::Net2Rust, &["sockets", "paths"], "sockets.paths", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG20_ITEMS: &[ItemSpec] = &[
+    item!("SmartSniff", "FG-20", TargetWorkspace::Net2Rust, &["capture", "sniff"], "capture.sniff", FixtureKind::Net, "capture_ethernet.pcap", Some("bad_pcap_magic.pcap"), false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("NetworkTrafficView", "FG-20", TargetWorkspace::Net2Rust, &["capture", "traffic"], "capture.traffic", FixtureKind::Net, "capture_ethernet.pcap", Some("truncated_pcap.pcap"), false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("HTTPNetworkSniffer", "FG-20", TargetWorkspace::Net2Rust, &["capture", "http"], "capture.http", FixtureKind::Net, "capture_ethernet.pcap", Some("bad_pcap_magic.pcap"), false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("DNSQuerySniffer", "FG-20", TargetWorkspace::Net2Rust, &["capture", "dns"], "capture.dns", FixtureKind::Net, "capture_ethernet.pcap", Some("truncated_pcap.pcap"), false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("DHCPLogView", "FG-20", TargetWorkspace::Net2Rust, &["capture", "dhcp"], "capture.dhcp", FixtureKind::Net, "capture_ethernet.pcap", Some("bad_pcap_magic.pcap"), false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("mDNSView", "FG-20", TargetWorkspace::Net2Rust, &["capture", "mdns"], "capture.mdns", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("WhoIsConnectedSniffer", "FG-20", TargetWorkspace::Net2Rust, &["capture", "whois-lan"], "capture.whois-lan", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("WebCookiesSniffer", "FG-20", TargetWorkspace::Net2Rust, &["capture", "cookies"], "capture.cookies", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("WebSiteSniffer", "FG-20", TargetWorkspace::Net2Rust, &["capture", "website"], "capture.website", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("NetworkLatencyView", "FG-20", TargetWorkspace::Net2Rust, &["capture", "latency"], "capture.latency", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+    item!("WifiChannelMonitor", "FG-20", TargetWorkspace::Net2Rust, &["capture", "wifi-mon"], "capture.wifi-mon", FixtureKind::Net, "capture_wifi_80211.pcap", Some("truncated_pcap.pcap"), false, CliInputStyle::FlagOffline("--pcap"), McpArgsKind::EmptyObject, true),
+];
+
+static FG21_ITEMS: &[ItemSpec] = &[
+    item!("PingInfoView", "FG-21", TargetWorkspace::Net2Rust, &["lan", "ping"], "lan.ping", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("CountryTraceRoute", "FG-21", TargetWorkspace::Net2Rust, &["lan", "trace"], "lan.trace", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("LANIPScanner", "FG-21", TargetWorkspace::Net2Rust, &["lan", "scan"], "lan.scan", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("Wireless Network Watcher", "FG-21", TargetWorkspace::Net2Rust, &["lan", "wnetwatcher"], "lan.wnetwatcher", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetworkConnectLog", "FG-21", TargetWorkspace::Net2Rust, &["lan", "connect-log"], "lan.connect-log", FixtureKind::Net, "capture_ethernet.pcap", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WakeMeOnLan", "FG-21", TargetWorkspace::Net2Rust, &["lan", "wol"], "lan.wol", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetBScanner", "FG-21", TargetWorkspace::Net2Rust, &["lan", "netbios"], "lan.netbios", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetResView", "FG-21", TargetWorkspace::Net2Rust, &["lan", "shares"], "lan.shares", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetworkOpenedFiles", "FG-21", TargetWorkspace::Net2Rust, &["lan", "openfiles"], "lan.openfiles", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("FastResolver", "FG-21", TargetWorkspace::Net2Rust, &["lan", "resolve"], "lan.resolve", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DownTester", "FG-21", TargetWorkspace::Net2Rust, &["lan", "speedtest"], "lan.speedtest", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG22_ITEMS: &[ItemSpec] = &[
+    item!("IPNetInfo", "FG-22", TargetWorkspace::Net2Rust, &["osint", "ipnet"], "osint.ipnet", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WhosIP", "FG-22", TargetWorkspace::Net2Rust, &["osint", "whosip"], "osint.whosip", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("IPInfoOffline", "FG-22", TargetWorkspace::Net2Rust, &["osint", "ipoffline"], "osint.ipoffline", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WhoisThisDomain", "FG-22", TargetWorkspace::Net2Rust, &["osint", "whois-domain"], "osint.whois-domain", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WhoisCL", "FG-22", TargetWorkspace::Net2Rust, &["osint", "whoiscl"], "osint.whoiscl", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DNSDataView", "FG-22", TargetWorkspace::Net2Rust, &["osint", "dns"], "osint.dns", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DomainHostingView", "FG-22", TargetWorkspace::Net2Rust, &["osint", "hosting"], "osint.hosting", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("MACAddressView", "FG-22", TargetWorkspace::Net2Rust, &["osint", "oui"], "osint.oui", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("QuickSetDNS", "FG-22", TargetWorkspace::Net2Rust, &["osint", "set-dns"], "osint.set-dns", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NetConnectChoose", "FG-22", TargetWorkspace::Net2Rust, &["osint", "net-profiles"], "osint.net-profiles", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG23_ITEMS: &[ItemSpec] = &[
+    item!("WifiInfoView", "FG-23", TargetWorkspace::Net2Rust, &["radio", "wifi-info"], "radio.wifi-info", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WirelessNetView", "FG-23", TargetWorkspace::Net2Rust, &["radio", "wifi-scan"], "radio.wifi-scan", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WirelessNetConsole", "FG-23", TargetWorkspace::Net2Rust, &["radio", "wifi-console"], "radio.wifi-console", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WirelessConnectionInfo", "FG-23", TargetWorkspace::Net2Rust, &["radio", "wifi-conn"], "radio.wifi-conn", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ManageWirelessNetworks", "FG-23", TargetWorkspace::Net2Rust, &["radio", "wifi-profiles"], "radio.wifi-profiles", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("HostedNetworkStarter", "FG-23", TargetWorkspace::Net2Rust, &["radio", "wifi-hosted"], "radio.wifi-hosted", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("BluetoothView", "FG-23", TargetWorkspace::Net2Rust, &["radio", "bt-view"], "radio.bt-view", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("BluetoothLogView", "FG-23", TargetWorkspace::Net2Rust, &["radio", "bt-log"], "radio.bt-log", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("BluetoothCL", "FG-23", TargetWorkspace::Net2Rust, &["radio", "bt-cl"], "radio.bt-cl", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("BluetoothLEView", "FG-23", TargetWorkspace::Net2Rust, &["radio", "ble"], "radio.ble", FixtureKind::Net, "wlan_ble_mock.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG24_ITEMS: &[ItemSpec] = &[
+    item!("ProcessThreadsView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "threads"], "proc_threads", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("LoadedDllsView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "dlls"], "proc_dlls", FixtureKind::SysFs, "sample_pe32.dll", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("HandleView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "handles"], "proc_handles", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("OpenFilesView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "open-files"], "proc_open_files", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ProcessActivityView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "activity"], "proc_activity", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("HeapMemView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "heap"], "proc_heap", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("GDIView", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "gdi"], "proc_gdi", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("WhatIsHang", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "hang"], "proc_hang", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("SimpleProgramDebugger", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "debug"], "proc_debug", FixtureKind::SysFs, "sample_pe64_dotnet.exe", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("proc list", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "list"], "proc_list", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("proc mem", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "mem"], "proc_mem", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("proc env", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "env"], "proc_env", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("proc etw-life", "FG-24", TargetWorkspace::Sys2Rust, &["proc", "etw-life"], "proc_etw_life", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG25_ITEMS: &[ItemSpec] = &[
+    item!("ServiWin", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "services"], "hw_services", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DriverView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "drivers"], "hw_drivers", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DevManView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "devices"], "hw_devices", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("TaskSchedulerView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "tasks"], "hw_tasks", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("SimpleWMIView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "wmi"], "hw_wmi", FixtureKind::Crash, "wmi_posture.json", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("FirmwareTablesView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "firmware"], "hw_firmware", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("BatteryInfoView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "battery"], "hw_battery", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("InstalledCodec", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "codecs"], "hw_codecs", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("TimeZonesView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "timezones"], "hw_timezones", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("SpecialFoldersView", "FG-25", TargetWorkspace::Sys2Rust, &["hw", "special-folders"], "hw_special_folders", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+static FG26_ITEMS: &[ItemSpec] = &[
+    item!("WhatInStartup", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "startup"], "shell_startup", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("UninstallView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "uninstall"], "shell_uninstall", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("InstalledPackagesView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "msi"], "shell_msi", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("InstalledAppView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "appx"], "shell_appx", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("MyUninstaller", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "legacy-uninst"], "shell_legacy_uninst", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ShellExView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "shellex"], "shell_shellex", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ShellMenuView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "menu"], "shell_menu", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ShellMenuNew", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "menu-new"], "shell_menu_new", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("FileTypesMan", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "filetypes"], "shell_filetypes", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("OpenWithView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "openwith"], "shell_openwith", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("RegDllView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "com"], "shell_com", FixtureKind::SysFs, "sample_pe32.dll", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("URLProtocolView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "url-proto"], "shell_url_proto", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("AppCompatibilityView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "appcompat"], "shell_appcompat", FixtureKind::Hive, "NTUSER.DAT", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("shell mui-ver", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "mui-ver"], "shell_mui_ver", FixtureKind::SysFs, "sample_pe32.dll", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ExtensionView", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "ext-view"], "shell_ext_view", FixtureKind::Hive, "SOFTWARE", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("shell env-vars", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "env-vars"], "shell_env_vars", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DesktopOK", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "desktop-icons"], "shell_desktop_icons", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("shell taskmgr-ext", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "taskmgr-ext"], "shell_taskmgr_ext", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("CleanAfterMe", "FG-26", TargetWorkspace::Sys2Rust, &["shell", "privacy-audit"], "shell_privacy_audit", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG27_ITEMS: &[ItemSpec] = &[
+    item!("DLLExportViewer", "FG-27", TargetWorkspace::Sys2Rust, &["pe", "exports"], "pe_exports", FixtureKind::SysFs, "sample_pe32.dll", Some("bad_pe_magic.exe"), false, CliInputStyle::Flag("--path"), McpArgsKind::EmptyObject, true),
+    item!("ResourcesExtract", "FG-27", TargetWorkspace::Sys2Rust, &["pe", "resources"], "pe_resources", FixtureKind::SysFs, "sample_pe32.dll", Some("truncated_pe.exe"), false, CliInputStyle::Flag("--path"), McpArgsKind::EmptyObject, true),
+    item!("IconsExtract", "FG-27", TargetWorkspace::Sys2Rust, &["pe", "icons"], "pe_icons", FixtureKind::SysFs, "sample_pe32.dll", Some("truncated_pe.exe"), false, CliInputStyle::Flag("--path"), McpArgsKind::EmptyObject, true),
+    item!("DotNetResourcesExtract", "FG-27", TargetWorkspace::Sys2Rust, &["pe", "dotnet"], "pe_dotnet", FixtureKind::SysFs, "sample_pe64_dotnet.exe", Some("bad_pe_magic.exe"), false, CliInputStyle::Flag("--path"), McpArgsKind::EmptyObject, true),
+    item!("ExeInfo", "FG-27", TargetWorkspace::Sys2Rust, &["pe", "info"], "pe_info", FixtureKind::SysFs, "sample_pe64_dotnet.exe", Some("bad_pe_magic.exe"), false, CliInputStyle::Flag("--path"), McpArgsKind::EmptyObject, true),
+    item!("GACView", "FG-27", TargetWorkspace::Sys2Rust, &["pe", "gac"], "pe_gac", FixtureKind::SysFs, "sample_pe64_dotnet.exe", None, false, CliInputStyle::Flag("--gac-root"), McpArgsKind::EmptyObject, true),
+];
+
+static FG28_ITEMS: &[ItemSpec] = &[
+    item!("SearchMyFiles", "FG-28", TargetWorkspace::Fs2Rust, &["search", "files"], "search_my_files", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOffline("--root"), McpArgsKind::EmptyObject, true),
+    item!("BulkFileChanger", "FG-28", TargetWorkspace::Fs2Rust, &["search", "bulk-time"], "bulk_file_changer", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOffline("--target"), McpArgsKind::EmptyObject, true),
+    item!("FolderTimeUpdate", "FG-28", TargetWorkspace::Fs2Rust, &["search", "folder-time"], "folder_time_update", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOfflineDir("--root"), McpArgsKind::EmptyObject, true),
+    item!("FoldersReport", "FG-28", TargetWorkspace::Fs2Rust, &["search", "report"], "folders_report", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOfflineDir("--root"), McpArgsKind::EmptyObject, true),
+    item!("ShortcutsMan", "FG-28", TargetWorkspace::Fs2Rust, &["search", "shortcuts"], "shortcuts_man", FixtureKind::Artifacts, "ForensicsSample.lnk", None, false, CliInputStyle::FlagOfflineDir("--root"), McpArgsKind::EmptyObject, true),
+    item!("HashMyFiles", "FG-28", TargetWorkspace::Fs2Rust, &["search", "hash"], "hash_my_files", FixtureKind::SysFs, "sample_pe32.dll", None, false, CliInputStyle::FlagOffline("--target"), McpArgsKind::EmptyObject, true),
+];
+
+static FG29_ITEMS: &[ItemSpec] = &[
+    item!("DriveLetterView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "drives"], "drive_letter_view", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DiskCountersView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "counters"], "disk_counters_view", FixtureKind::SysFs, "sample_records.jsonl", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("FileActivityWatch", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "file-watch"], "file_activity_watch", FixtureKind::SysFs, "usnjrnl_j.bin", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("FolderChangesView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "folder-watch"], "folder_changes_view", FixtureKind::SysFs, "usnjrnl_j.bin", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("FileAccessErrorView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "access-err"], "file_access_error_view", FixtureKind::SysFs, "usnjrnl_j.bin", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("AppReadWriteCounter", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "app-io"], "app_read_write_counter", FixtureKind::SysFs, "usnjrnl_j.bin", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("DiskSmartView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "smart"], "disk_smart_view", FixtureKind::SysFs, "ata_smart.bin", Some("bad_smart_checksum.bin"), false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("AlternateStreamView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "ads"], "alternate_stream_view", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("NTFSLinksView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "links"], "ntfs_links_view", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("PropertySystemView", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "props"], "property_system_view", FixtureKind::SysFs, "sample_pe32.dll", None, false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+    item!("ntfs usn", "FG-29", TargetWorkspace::Fs2Rust, &["ntfs", "usn"], "usn_journal_view", FixtureKind::SysFs, "usnjrnl_j.bin", Some("truncated_usn.bin"), false, CliInputStyle::OfflineNoFile, McpArgsKind::EmptyObject, true),
+];
+
+static FG30_ITEMS: &[ItemSpec] = &[
+    item!("CSVFileView", "FG-30", TargetWorkspace::Fs2Rust, &["data", "csv"], "fs2rust.data.csv_file_view", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOffline("--path"), McpArgsKind::EmptyObject, true),
+    item!("TableTextCompare", "FG-30", TargetWorkspace::Fs2Rust, &["data", "diff"], "fs2rust.data.table_text_compare", FixtureKind::SysFs, "sample_data_right.csv", None, false, CliInputStyle::FsDataDiff, McpArgsKind::EmptyObject, true),
+    item!("GetNir", "FG-30", TargetWorkspace::Fs2Rust, &["data", "getnir"], "fs2rust.data.getnir", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOffline("--path"), McpArgsKind::EmptyObject, true),
+    item!("ExifDataView", "FG-30", TargetWorkspace::Fs2Rust, &["data", "exif"], "fs2rust.data.exif_data_view", FixtureKind::Browser, "media/sample_exif.jpg", Some("bad_exif.jpg"), false, CliInputStyle::FlagOffline("--path"), McpArgsKind::EmptyObject, true),
+    item!("SimpleCodeGenerator", "FG-30", TargetWorkspace::Fs2Rust, &["data", "codegen"], "fs2rust.data.simple_code_generator", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::FlagOffline("--csv"), McpArgsKind::EmptyObject, true),
+    item!("HTMLAsText", "FG-30", TargetWorkspace::Fs2Rust, &["data", "html2text"], "fs2rust.data.html_as_text", FixtureKind::SysFs, "sample_page.html", None, false, CliInputStyle::FlagOffline("--path"), McpArgsKind::EmptyObject, true),
+    item!("AddrView", "FG-30", TargetWorkspace::Fs2Rust, &["data", "addr"], "fs2rust.data.addr_view", FixtureKind::SysFs, "sample_contacts.vcf", None, false, CliInputStyle::FlagOffline("--path"), McpArgsKind::EmptyObject, true),
+];
+
+static FG31_ITEMS: &[ItemSpec] = &[
+    item!("guap-e2e", "FG-31", TargetWorkspace::All, &[], "guap_e2e", FixtureKind::SysFs, "sample_data.csv", None, false, CliInputStyle::InputFlag, McpArgsKind::EmptyObject, true),
+];
+
+pub static FEATURE_GROUPS: &[FeatureGroupDef] = &[
+    FeatureGroupDef { id: "FG-01", name: "guap-table", workspace: TargetWorkspace::GuapKit, domain_crate: "guap-table", cli_group: "guap-table", fixture_kind: FixtureKind::SysFs, items: FG01_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Standard, cli_live: CliLiveStyle::LiveFlag, mutating_action: None },
+    FeatureGroupDef { id: "FG-02", name: "guap-export", workspace: TargetWorkspace::GuapKit, domain_crate: "guap-export", cli_group: "guap-export", fixture_kind: FixtureKind::SysFs, items: FG02_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Standard, cli_live: CliLiveStyle::LiveFlag, mutating_action: None },
+    FeatureGroupDef { id: "FG-03", name: "guap-gui-win32", workspace: TargetWorkspace::GuapKit, domain_crate: "guap-gui-win32", cli_group: "guap-gui-win32", fixture_kind: FixtureKind::SysFs, items: FG03_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Standard, cli_live: CliLiveStyle::LiveFlag, mutating_action: None },
+    FeatureGroupDef { id: "FG-04", name: "guap-gui-iced", workspace: TargetWorkspace::GuapKit, domain_crate: "guap-gui-iced", cli_group: "guap-gui-iced", fixture_kind: FixtureKind::SysFs, items: FG04_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Standard, cli_live: CliLiveStyle::LiveFlag, mutating_action: None },
+    FeatureGroupDef { id: "FG-05", name: "guap-mcp", workspace: TargetWorkspace::GuapKit, domain_crate: "guap-mcp", cli_group: "guap-mcp", fixture_kind: FixtureKind::SysFs, items: FG05_ITEMS, mutating_tool_hint: Some("guap_mcp"), cli_export: CliExportStyle::Standard, cli_live: CliLiveStyle::LiveFlag, mutating_action: None },
+    FeatureGroupDef { id: "FG-06", name: "forensics2rust -evtx", workspace: TargetWorkspace::Forensics2Rust, domain_crate: "forensics2rust-evtx", cli_group: "evtx", fixture_kind: FixtureKind::Evtx, items: FG06_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Forensics, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-07", name: "forensics2rust -hive", workspace: TargetWorkspace::Forensics2Rust, domain_crate: "forensics2rust-hive", cli_group: "hive", fixture_kind: FixtureKind::Hive, items: FG07_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Forensics, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-08", name: "forensics2rust -srum", workspace: TargetWorkspace::Forensics2Rust, domain_crate: "forensics2rust-srum", cli_group: "srum", fixture_kind: FixtureKind::Srum, items: FG08_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Forensics, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-09", name: "forensics2rust -artifacts", workspace: TargetWorkspace::Forensics2Rust, domain_crate: "forensics2rust-artifacts", cli_group: "artifacts", fixture_kind: FixtureKind::Artifacts, items: FG09_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Forensics, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-10", name: "forensics2rust -crash", workspace: TargetWorkspace::Forensics2Rust, domain_crate: "forensics2rust-crash", cli_group: "crash", fixture_kind: FixtureKind::Crash, items: FG10_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Forensics, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-11", name: "forensics2rust -posture", workspace: TargetWorkspace::Forensics2Rust, domain_crate: "forensics2rust-posture", cli_group: "posture", fixture_kind: FixtureKind::Crash, items: FG11_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Forensics, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-12", name: "chrome2rust extensions", workspace: TargetWorkspace::Chrome2Rust, domain_crate: "chrome2rust-forensics", cli_group: "fx", fixture_kind: FixtureKind::Browser, items: FG12_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Chrome, cli_live: CliLiveStyle::PositionalNoPath, mutating_action: None },
+    FeatureGroupDef { id: "FG-13", name: "mail2rust extensions", workspace: TargetWorkspace::Mail2Rust, domain_crate: "mail2rust-outlook", cli_group: "outlook", fixture_kind: FixtureKind::Mail, items: FG13_ITEMS, mutating_tool_hint: Some("mail2rust_nk2_edit"), cli_export: CliExportStyle::Mail, cli_live: CliLiveStyle::MailLive, mutating_action: Some(MutatingActionSpec { tool_id: "mail2rust_nk2_edit", args_kind: MutatingArgsKind::MailNk2Edit, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-14", name: "android2rust extension", workspace: TargetWorkspace::Android2Rust, domain_crate: "android2rust-wpd", cli_group: "mtp", fixture_kind: FixtureKind::Wpd, items: FG14_ITEMS, mutating_tool_hint: Some("android2rust_wpd_delete"), cli_export: CliExportStyle::Android, cli_live: CliLiveStyle::LiveFlag, mutating_action: Some(MutatingActionSpec { tool_id: "android2rust_wpd_delete", args_kind: MutatingArgsKind::AndroidWpdDelete, cli_supports_allow_mutating: false }) },
+    FeatureGroupDef { id: "FG-15", name: "winctl2rust -cmd", workspace: TargetWorkspace::Winctl2Rust, domain_crate: "winctl2rust-cmd", cli_group: "cmd", fixture_kind: FixtureKind::Winctl, items: FG15_ITEMS, mutating_tool_hint: Some("cmd_nircmd"), cli_export: CliExportStyle::Winctl, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "cmd_nircmd", args_kind: MutatingArgsKind::WinctlNirCmd, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-16", name: "winctl2rust -audio", workspace: TargetWorkspace::Winctl2Rust, domain_crate: "winctl2rust-audio", cli_group: "audio", fixture_kind: FixtureKind::Winctl, items: FG16_ITEMS, mutating_tool_hint: Some("audio_svcl"), cli_export: CliExportStyle::Winctl, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "audio_svcl", args_kind: MutatingArgsKind::WinctlAudioSvcl, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-17", name: "winctl2rust -display", workspace: TargetWorkspace::Winctl2Rust, domain_crate: "winctl2rust-display", cli_group: "display", fixture_kind: FixtureKind::Winctl, items: FG17_ITEMS, mutating_tool_hint: Some("display_ddc_set"), cli_export: CliExportStyle::Winctl, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "display_ddc_set", args_kind: MutatingArgsKind::WinctlDisplayDdc, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-18", name: "winctl2rust -desktop", workspace: TargetWorkspace::Winctl2Rust, domain_crate: "winctl2rust-desktop", cli_group: "desktop", fixture_kind: FixtureKind::Winctl, items: FG18_ITEMS, mutating_tool_hint: Some("desktop_clip_hist_control"), cli_export: CliExportStyle::Winctl, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "desktop_clip_hist_control", args_kind: MutatingArgsKind::WinctlDesktopClip, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-19", name: "net2rust -sockets", workspace: TargetWorkspace::Net2Rust, domain_crate: "net2rust-sockets", cli_group: "sockets", fixture_kind: FixtureKind::Net, items: FG19_ITEMS, mutating_tool_hint: Some("sockets.ports.close"), cli_export: CliExportStyle::Net, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "sockets.ports.close", args_kind: MutatingArgsKind::NetSocketsClose, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-20", name: "net2rust -capture", workspace: TargetWorkspace::Net2Rust, domain_crate: "net2rust-capture", cli_group: "capture", fixture_kind: FixtureKind::Net, items: FG20_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Net, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-21", name: "net2rust -lan", workspace: TargetWorkspace::Net2Rust, domain_crate: "net2rust-lan", cli_group: "lan", fixture_kind: FixtureKind::Net, items: FG21_ITEMS, mutating_tool_hint: Some("lan.wol.send"), cli_export: CliExportStyle::Net, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "lan.wol.send", args_kind: MutatingArgsKind::NetLanWol, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-22", name: "net2rust -osint", workspace: TargetWorkspace::Net2Rust, domain_crate: "net2rust-osint", cli_group: "osint", fixture_kind: FixtureKind::Net, items: FG22_ITEMS, mutating_tool_hint: Some("osint.set-dns.apply"), cli_export: CliExportStyle::Net, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "osint.set-dns.apply", args_kind: MutatingArgsKind::NetOsintSetDns, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-23", name: "net2rust -radio", workspace: TargetWorkspace::Net2Rust, domain_crate: "net2rust-radio", cli_group: "radio", fixture_kind: FixtureKind::Net, items: FG23_ITEMS, mutating_tool_hint: Some("radio.wifi-profiles.set-order"), cli_export: CliExportStyle::Net, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "radio.wifi-profiles.set-order", args_kind: MutatingArgsKind::NetRadioWifiSetOrder, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-24", name: "sys2rust -proc", workspace: TargetWorkspace::Sys2Rust, domain_crate: "sys2rust-proc", cli_group: "proc", fixture_kind: FixtureKind::SysFs, items: FG24_ITEMS, mutating_tool_hint: Some("proc_terminate"), cli_export: CliExportStyle::Sys2Rust, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "proc_terminate", args_kind: MutatingArgsKind::SysProcTerminate, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-25", name: "sys2rust -hw", workspace: TargetWorkspace::Sys2Rust, domain_crate: "sys2rust-hw", cli_group: "hw", fixture_kind: FixtureKind::SysFs, items: FG25_ITEMS, mutating_tool_hint: Some("hw_service_control"), cli_export: CliExportStyle::Sys2Rust, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "hw_service_control", args_kind: MutatingArgsKind::SysHwServiceControl, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-26", name: "sys2rust -shell", workspace: TargetWorkspace::Sys2Rust, domain_crate: "sys2rust-shell", cli_group: "shell", fixture_kind: FixtureKind::SysFs, items: FG26_ITEMS, mutating_tool_hint: Some("shell_privacy_audit_clean"), cli_export: CliExportStyle::Sys2Rust, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "shell_privacy_audit_clean", args_kind: MutatingArgsKind::SysShellPrivacyClean, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-27", name: "sys2rust -pe", workspace: TargetWorkspace::Sys2Rust, domain_crate: "sys2rust-pe", cli_group: "pe", fixture_kind: FixtureKind::SysFs, items: FG27_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Sys2Rust, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-28", name: "fs2rust -search", workspace: TargetWorkspace::Fs2Rust, domain_crate: "fs2rust-search", cli_group: "search", fixture_kind: FixtureKind::SysFs, items: FG28_ITEMS, mutating_tool_hint: Some("bulk_file_changer_apply"), cli_export: CliExportStyle::Fs, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "bulk_file_changer_apply", args_kind: MutatingArgsKind::FsBulkTargets, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-29", name: "fs2rust -ntfs", workspace: TargetWorkspace::Fs2Rust, domain_crate: "fs2rust-ntfs", cli_group: "ntfs", fixture_kind: FixtureKind::SysFs, items: FG29_ITEMS, mutating_tool_hint: Some("alternate_stream_delete"), cli_export: CliExportStyle::Fs, cli_live: CliLiveStyle::OmitOffline, mutating_action: Some(MutatingActionSpec { tool_id: "alternate_stream_delete", args_kind: MutatingArgsKind::FsAdsDelete, cli_supports_allow_mutating: true }) },
+    FeatureGroupDef { id: "FG-30", name: "fs2rust -data", workspace: TargetWorkspace::Fs2Rust, domain_crate: "fs2rust-data", cli_group: "data", fixture_kind: FixtureKind::SysFs, items: FG30_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Fs, cli_live: CliLiveStyle::OmitOffline, mutating_action: None },
+    FeatureGroupDef { id: "FG-31", name: "E2E Suite & R4 Compliance", workspace: TargetWorkspace::All, domain_crate: "e2e-tiers", cli_group: "e2e", fixture_kind: FixtureKind::SysFs, items: FG31_ITEMS, mutating_tool_hint: None, cli_export: CliExportStyle::Standard, cli_live: CliLiveStyle::LiveFlag, mutating_action: None },
+];
+static WS_ALL: &[TargetWorkspace] = &[];
+static WS_GUAP_KIT: &[TargetWorkspace] = &[TargetWorkspace::GuapKit];
+static WS_FORENSICS: &[TargetWorkspace] = &[TargetWorkspace::Forensics2Rust];
+static WS_CHROME: &[TargetWorkspace] = &[TargetWorkspace::Chrome2Rust];
+static WS_MAIL: &[TargetWorkspace] = &[TargetWorkspace::Mail2Rust];
+static WS_ANDROID: &[TargetWorkspace] = &[TargetWorkspace::Android2Rust];
+static WS_WINCTL: &[TargetWorkspace] = &[TargetWorkspace::Winctl2Rust];
+static WS_NET: &[TargetWorkspace] = &[TargetWorkspace::Net2Rust];
+static WS_SYS: &[TargetWorkspace] = &[TargetWorkspace::Sys2Rust];
+static WS_FS: &[TargetWorkspace] = &[TargetWorkspace::Fs2Rust];
+static WS_MAIL_CHROME: &[TargetWorkspace] = &[TargetWorkspace::Mail2Rust, TargetWorkspace::Chrome2Rust];
+static WS_SYS_FS: &[TargetWorkspace] = &[TargetWorkspace::Sys2Rust, TargetWorkspace::Fs2Rust];
+
+fn required_for_workspace(ws: TargetWorkspace) -> &'static [TargetWorkspace] {
+    match ws {
+        TargetWorkspace::All => WS_ALL,
+        TargetWorkspace::GuapKit => WS_GUAP_KIT,
+        TargetWorkspace::Forensics2Rust => WS_FORENSICS,
+        TargetWorkspace::Chrome2Rust => WS_CHROME,
+        TargetWorkspace::Mail2Rust => WS_MAIL,
+        TargetWorkspace::Android2Rust => WS_ANDROID,
+        TargetWorkspace::Winctl2Rust => WS_WINCTL,
+        TargetWorkspace::Net2Rust => WS_NET,
+        TargetWorkspace::Sys2Rust => WS_SYS,
+        TargetWorkspace::Fs2Rust => WS_FS,
+    }
+}
+
+fn leak_str(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+static CATALOG_CHECKS: LazyLock<Vec<CatalogCheckDef>> = LazyLock::new(|| {
+    let mut checks = Vec::with_capacity(360);
+
+    for fg in FEATURE_GROUPS {
+        let req = required_for_workspace(fg.workspace);
+        match fg.id {
+            "FG-01" | "FG-02" | "FG-03" | "FG-04" | "FG-05" => {
+                let t1_defs = [
+                    ("01", "Cargo.toml baseline + cargo check", CheckKind::GuapKitCargoBaseline),
+                    ("02", "cargo test --offline", CheckKind::GuapKitCargoTest),
+                    ("03", "public API contract source verification", CheckKind::GuapKitContractScan),
+                    ("04", "primary functional & fixture check", CheckKind::GuapKitFunctionalA),
+                    ("05", "secondary functional & interoperability check", CheckKind::GuapKitFunctionalB),
+                ];
+                for (suffix, summary, kind) in t1_defs {
+                    checks.push(CatalogCheckDef {
+                        id: leak_str(format!("T1-{}-{suffix}", fg.id)),
+                        tier: Tier::Tier1,
+                        feature_group_id: fg.id,
+                        feature_group_name: fg.name,
+                        primary_workspace: fg.workspace,
+                        required_workspaces: req,
+                        summary: leak_str(format!("{} {}", fg.name, summary)),
+                        kind,
+                    });
+                }
+                let t2_defs = [
+                    ("01", "empty input / schema mismatch boundary", "empty_schema"),
+                    ("02", "invalid filter / format / offset boundary", "invalid_query"),
+                    ("03", "CSV formula / HTML XSS / Markdown pipe boundary", "injection_escape"),
+                    ("04", "missing path / headless / ComCtl boundary", "missing_or_headless"),
+                    ("05", "invalid JSON-RPC / ReadOnlyOnly -32003 boundary", "rpc_policy_boundary"),
+                ];
+                for (suffix, summary, tag) in t2_defs {
+                    checks.push(CatalogCheckDef {
+                        id: leak_str(format!("T2-{}-{suffix}", fg.id)),
+                        tier: Tier::Tier2,
+                        feature_group_id: fg.id,
+                        feature_group_name: fg.name,
+                        primary_workspace: fg.workspace,
+                        required_workspaces: req,
+                        summary: leak_str(format!("{} {}", fg.name, summary)),
+                        kind: CheckKind::GuapKitBoundary(tag),
+                    });
+                }
+            }
+            "FG-31" => {
+                let t1_defs = [
+                    ("01", "e2e_fixtures verify_fixture_integrity & R4 zero-creds", CheckKind::E2eFixtureIntegrity),
+                    ("02", "catalog completeness (360 checks, 31 groups, 227 items)", CheckKind::E2eCatalogCompleteness),
+                    ("03", "independent CSV formula neutralization & Merkle verifier", CheckKind::E2eExportVerifierSelfCheck),
+                    ("04", "MCP JSON-RPC 2024-11-05 protocol validator self-check", CheckKind::E2eMcpProtocolSelfCheck),
+                    ("05", "e2e_harness workspace configuration & offline crate check", CheckKind::E2eHarnessWorkspaceCheck),
+                ];
+                for (suffix, summary, kind) in t1_defs {
+                    checks.push(CatalogCheckDef {
+                        id: leak_str(format!("T1-{}-{suffix}", fg.id)),
+                        tier: Tier::Tier1,
+                        feature_group_id: fg.id,
+                        feature_group_name: fg.name,
+                        primary_workspace: TargetWorkspace::All,
+                        required_workspaces: WS_ALL,
+                        summary,
+                        kind,
+                    });
+                }
+                let t2_defs = [
+                    ("01", "detect tampered Merkle leaf SHA-256", "tampered_merkle_leaf"),
+                    ("02", "detect tampered Merkle root SHA-512", "tampered_merkle_root512"),
+                    ("03", "reject unneutralized =cmd| CSV injection payload", "unneutralized_csv"),
+                    ("04", "reject leading whitespace + formula payload", "leading_space_formula"),
+                    ("05", "reject invalid CustodyManifest total_bytes mismatch", "bad_total_bytes"),
+                ];
+                for (suffix, summary, tag) in t2_defs {
+                    checks.push(CatalogCheckDef {
+                        id: leak_str(format!("T2-{}-{suffix}", fg.id)),
+                        tier: Tier::Tier2,
+                        feature_group_id: fg.id,
+                        feature_group_name: fg.name,
+                        primary_workspace: TargetWorkspace::All,
+                        required_workspaces: WS_ALL,
+                        summary,
+                        kind: CheckKind::E2eNegativeSelfCheck(tag),
+                    });
+                }
+            }
+            _ => {
+                let t1_defs = [
+                    ("01", "cargo check & test domain crate", CheckKind::DomainCargoCheckTest),
+                    ("02", "CLI --help subcommand discovery (all items)", CheckKind::DomainCliHelpAllItems),
+                    ("03", "CLI mcp --tools schema discovery (all items)", CheckKind::DomainMcpToolsAllItems),
+                    ("04", "MCP JSON-RPC 2024-11-05 initialize/tools/list/call", CheckKind::DomainMcpJsonRpcReadOnly),
+                    ("05", "CLI read-only fixture execution (all items)", CheckKind::DomainCliReadOnlyAllItems),
+                ];
+                for (suffix, summary, kind) in t1_defs {
+                    checks.push(CatalogCheckDef {
+                        id: leak_str(format!("T1-{}-{suffix}", fg.id)),
+                        tier: Tier::Tier1,
+                        feature_group_id: fg.id,
+                        feature_group_name: fg.name,
+                        primary_workspace: fg.workspace,
+                        required_workspaces: req,
+                        summary: leak_str(format!("{} {}", fg.name, summary)),
+                        kind,
+                    });
+                }
+                let t2_defs = [
+                    ("01", "missing input path error without panic", CheckKind::DomainMissingPath),
+                    ("02", "corrupt / truncated fixture error without panic", CheckKind::DomainCorruptFixture),
+                    ("03", "empty input, invalid CLI flags & malformed filter without panic", CheckKind::DomainEmptyAndInvalidFlags),
+                    ("04", "non-privileged / missing driver / missing hardware fallback", CheckKind::DomainNonPrivilegedFallback),
+                    ("05", "malformed JSON-RPC (-32700/-32601/-32602) without panic", CheckKind::DomainMalformedMcpJsonRpc),
+                ];
+                for (suffix, summary, kind) in t2_defs {
+                    checks.push(CatalogCheckDef {
+                        id: leak_str(format!("T2-{}-{suffix}", fg.id)),
+                        tier: Tier::Tier2,
+                        feature_group_id: fg.id,
+                        feature_group_name: fg.name,
+                        primary_workspace: fg.workspace,
+                        required_workspaces: req,
+                        summary: leak_str(format!("{} {}", fg.name, summary)),
+                        kind,
+                    });
+                }
+            }
+        }
+    }
+
+    type TierPairSpec = (&'static str, &'static str, &'static str, TargetWorkspace, &'static [TargetWorkspace], &'static str);
+    let t3_specs: &[TierPairSpec] = &[
+        ("T3-01", "FG-01", "guap-table", TargetWorkspace::GuapKit, WS_GUAP_KIT, "GetNir query across suite fixture CSV/JSON vectors"),
+        ("T3-02", "FG-01", "guap-table", TargetWorkspace::GuapKit, WS_GUAP_KIT, "TableTextCompare diff across sample_data.csv and sample_data_right.csv"),
+        ("T3-03", "FG-02", "guap-export", TargetWorkspace::GuapKit, WS_GUAP_KIT, "CSV/TSV formula neutralization on =, +, -, @, \\t payloads"),
+        ("T3-04", "FG-02", "guap-export", TargetWorkspace::GuapKit, WS_GUAP_KIT, "7-format export + SHA-256/512 Merkle CustodyManifest verification"),
+        ("T3-05", "FG-03", "guap-gui-win32", TargetWorkspace::GuapKit, WS_GUAP_KIT, "guap-gui-win32 TableProvider binding & ComCtl v6 manifest check"),
+        ("T3-06", "FG-04", "guap-gui-iced", TargetWorkspace::GuapKit, WS_GUAP_KIT, "guap-gui-iced IcedDataGrid state & TableProvider binding"),
+        ("T3-07", "FG-05", "guap-mcp", TargetWorkspace::GuapKit, WS_GUAP_KIT, "guap-mcp ReadOnlyOnly -32003 policy gate enforcement"),
+        ("T3-08", "FG-05", "guap-mcp", TargetWorkspace::GuapKit, WS_GUAP_KIT, "guap-mcp AllowMutating requires confirm_destructive=true & supports dry_run"),
+        ("T3-09", "FG-06", "forensics2rust -evtx", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "EVTX -> guap-table -> guap-export CSV + Merkle custody manifest"),
+        ("T3-10", "FG-07", "forensics2rust -hive", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "Offline regf + snapshot diff -> guap-export custody manifest"),
+        ("T3-11", "FG-08", "forensics2rust -srum", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "ESE SRUDB.dat -> guap-table GetNir query & CSV export"),
+        ("T3-12", "FG-09", "forensics2rust -artifacts", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "LastActivityView correlation + TableTextCompare"),
+        ("T3-13", "FG-10", "forensics2rust -crash", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "MDMP + Report.wer -> Merkle custody manifest"),
+        ("T3-14", "FG-11", "forensics2rust -posture", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "DataStore.edb + CBS.log + WMI posture -> guap-export"),
+        ("T3-15", "FG-12", "chrome2rust extensions", TargetWorkspace::Chrome2Rust, WS_CHROME, "Unified multi-browser + EXIF -> guap-export custody manifest"),
+        ("T3-16", "FG-12", "chrome2rust extensions", TargetWorkspace::Chrome2Rust, WS_CHROME, "chrome2rust MCP tools/list annotations + TableProvider + CLI cache delete dry-run safety"),
+        ("T3-17", "FG-13", "mail2rust extensions", TargetWorkspace::Mail2Rust, WS_MAIL, "NK2/msg/eml -> guap-export + Mutating NK2 edit -32003 policy gate"),
+        ("T3-18", "FG-14", "android2rust extension", TargetWorkspace::Android2Rust, WS_ANDROID, "WPD offline JSON -> guap-table + Mutating delete -32003 policy gate"),
+        ("T3-19", "FG-15", "winctl2rust -cmd", TargetWorkspace::Winctl2Rust, WS_WINCTL, "NirCmd DSL --dry-run vs -32003 Mutating policy gate"),
+        ("T3-20", "FG-16", "winctl2rust -audio", TargetWorkspace::Winctl2Rust, WS_WINCTL, "CoreAudio mock + svcl read-only vs -32003 mutating gate"),
+        ("T3-21", "FG-17", "winctl2rust -display", TargetWorkspace::Winctl2Rust, WS_WINCTL, "EDID/CEA-861 -> guap-table + DDC/CI -32003 Mutating gate"),
+        ("T3-22", "FG-18", "winctl2rust -desktop", TargetWorkspace::Winctl2Rust, WS_WINCTL, "Clipboard/hotkeys/webcam missing-hw fallback + -32003 gate"),
+        ("T3-23", "FG-19", "net2rust -sockets", TargetWorkspace::Net2Rust, WS_NET, "Socket snapshot -> guap-export + SetTcpEntry -32003 gate"),
+        ("T3-24", "FG-20", "net2rust -capture", TargetWorkspace::Net2Rust, WS_NET, "PCAP offline decode + missing Npcap graceful fallback"),
+        ("T3-25", "FG-21", "net2rust -lan", TargetWorkspace::Net2Rust, WS_NET, "WOL/NetFileClose -32003 gate + OUI join"),
+        ("T3-26", "FG-22", "net2rust -osint", TargetWorkspace::Net2Rust, WS_NET, "Offline GeoIP + OUI -> guap-table + QuickSetDNS -32003 gate"),
+        ("T3-27", "FG-23", "net2rust -radio", TargetWorkspace::Net2Rust, WS_NET, "Mock WLAN/BLE + R4 zero-plaintext-key check + -32003 gate"),
+        ("T3-28", "FG-24", "sys2rust -proc", TargetWorkspace::Sys2Rust, WS_SYS, "Non-admin proc fallback + terminate/suspend -32003 gate"),
+        ("T3-29", "FG-25", "sys2rust -hw", TargetWorkspace::Sys2Rust, WS_SYS, "Offline SMBIOS/Task XML -> guap-export + service -32003 gate"),
+        ("T3-30", "FG-26", "sys2rust -shell", TargetWorkspace::Sys2Rust, WS_SYS, "CleanAfterMe audit vs clean -32003 policy gate"),
+        ("T3-31", "FG-27", "sys2rust -pe", TargetWorkspace::Sys2Rust, WS_SYS, "PE32/PE32+/.NET -> SHA-256/512 Merkle custody manifest"),
+        ("T3-32", "FG-28", "fs2rust -search", TargetWorkspace::Fs2Rust, WS_FS, "HashMyFiles + BulkFileChanger dry-run vs -32003 gate"),
+        ("T3-33", "FG-29", "fs2rust -ntfs", TargetWorkspace::Fs2Rust, WS_FS, "$UsnJrnl + ATA SMART 512B + non-admin graceful fallback"),
+        ("T3-34", "FG-30", "fs2rust -data", TargetWorkspace::Fs2Rust, WS_FS, "CSVFileView/TableTextCompare/GetNir/EXIF + neutralized CSV export"),
+    ];
+    for &(id, fg_id, fg_name, ws, req, summary) in t3_specs {
+        checks.push(CatalogCheckDef {
+            id,
+            tier: Tier::Tier3,
+            feature_group_id: fg_id,
+            feature_group_name: fg_name,
+            primary_workspace: ws,
+            required_workspaces: req,
+            summary,
+            kind: CheckKind::Tier3Pairwise(id),
+        });
+    }
+
+    let t4_specs: &[TierPairSpec] = &[
+        ("T4-S01", "FG-06", "forensics2rust -evtx", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "S1: Ransomware & execution triage (evtx + hive + artifacts + Merkle)"),
+        ("T4-S02", "FG-08", "forensics2rust -srum", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "S2: Network exfiltration & SRUM audit (srum + evtx + neutralized CSV)"),
+        ("T4-S03", "FG-09", "forensics2rust -artifacts", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "S3: Removable USB & ShellBag investigation (SYSTEM/NTUSER/UsrClass + artifacts)"),
+        ("T4-S04", "FG-10", "forensics2rust -crash", TargetWorkspace::Forensics2Rust, WS_FORENSICS, "S4: BSOD crash & patch posture audit (MDMP + WER + DataStore.edb + CBS.log)"),
+        ("T4-S05", "FG-12", "chrome2rust extensions", TargetWorkspace::Chrome2Rust, WS_CHROME, "S5: Multi-browser history, cache & EXIF/video forensics"),
+        ("T4-S06", "FG-13", "mail2rust extensions", TargetWorkspace::Mail2Rust, WS_MAIL_CHROME, "S6: Phishing attachment & autocomplete audit + NK2 -32003 gate"),
+        ("T4-S07", "FG-14", "android2rust extension", TargetWorkspace::Android2Rust, WS_ANDROID, "S7: Mobile device WPD/MTP acquisition + custody + -32003 gate"),
+        ("T4-S08", "FG-15", "winctl2rust -cmd", TargetWorkspace::Winctl2Rust, WS_WINCTL, "S8: Desktop automation & CoreAudio policy gate (--dry-run vs -32003)"),
+        ("T4-S09", "FG-17", "winctl2rust -display", TargetWorkspace::Winctl2Rust, WS_WINCTL, "S9: Multi-monitor EDID & window/camera diagnostics"),
+        ("T4-S10", "FG-20", "net2rust -capture", TargetWorkspace::Net2Rust, WS_NET, "S10: Packet capture & offline OSINT enrichment (zero credential leak)"),
+        ("T4-S11", "FG-21", "net2rust -lan", TargetWorkspace::Net2Rust, WS_NET, "S11: LAN discovery, SMB & WOL -32003 safety gate"),
+        ("T4-S12", "FG-23", "net2rust -radio", TargetWorkspace::Net2Rust, WS_NET, "S12: Wi-Fi & BLE audit without key recovery"),
+        ("T4-S13", "FG-24", "sys2rust -proc", TargetWorkspace::Sys2Rust, WS_SYS, "S13: Process, firmware, task & privacy audit + CleanAfterMe -32003 gate"),
+        ("T4-S14", "FG-27", "sys2rust -pe", TargetWorkspace::Sys2Rust, WS_SYS_FS, "S14: PE32/PE32+/.NET binary & hash triage + Merkle custody"),
+        ("T4-S15", "FG-30", "fs2rust -data", TargetWorkspace::Fs2Rust, WS_FS, "S15: NTFS journal, SMART & CSV formula-neutralized diff workflow"),
+        ("T4-S16", "FG-31", "E2E Suite & R4 Compliance", TargetWorkspace::GuapKit, WS_GUAP_KIT, "S16: Full-workspace guap-kit GUI/MCP host & E2E self-audit"),
+    ];
+    for &(id, fg_id, fg_name, ws, req, summary) in t4_specs {
+        checks.push(CatalogCheckDef {
+            id,
+            tier: Tier::Tier4,
+            feature_group_id: fg_id,
+            feature_group_name: fg_name,
+            primary_workspace: ws,
+            required_workspaces: req,
+            summary,
+            kind: CheckKind::Tier4Scenario(id),
+        });
+    }
+
+    checks
+});
+
+pub fn catalog_checks() -> &'static [CatalogCheckDef] {
+    &CATALOG_CHECKS
+}
+
+pub fn feature_groups() -> &'static [FeatureGroupDef] {
+    FEATURE_GROUPS
+}
+
+pub fn find_feature_group(id: &str) -> Option<&'static FeatureGroupDef> {
+    FEATURE_GROUPS.iter().find(|fg| fg.id == id)
+}
+
+pub fn all_items() -> Vec<&'static ItemSpec> {
+    FEATURE_GROUPS
+        .iter()
+        .flat_map(|fg| fg.items.iter())
+        .collect()
+}
+
+pub fn validate_catalog_invariants() -> anyhow::Result<()> {
+    let groups = feature_groups();
+    ensure!(groups.len() == 31, "expected 31 feature groups, got {}", groups.len());
+
+    let mut group_ids = BTreeSet::new();
+    let mut item_names = BTreeSet::new();
+    for fg in groups {
+        ensure!(group_ids.insert(fg.id), "duplicate feature group id {}", fg.id);
+        ensure!(!fg.items.is_empty(), "feature group {} has 0 items", fg.id);
+        for it in fg.items {
+            ensure!(
+                item_names.insert(it.name),
+                "duplicate constituent item name {:?}",
+                it.name
+            );
+            ensure!(
+                it.group_id == fg.id,
+                "item {:?} group_id {:?} != {:?}",
+                it.name,
+                it.group_id,
+                fg.id
+            );
+        }
+    }
+    ensure!(
+        item_names.len() == 227,
+        "expected 227 unique items, got {}",
+        item_names.len()
+    );
+
+    let checks = catalog_checks();
+    ensure!(checks.len() >= 356, "expected >= 356 checks, got {}", checks.len());
+    ensure!(checks.len() == 360, "expected 360 checks, got {}", checks.len());
+
+    let mut check_ids = BTreeSet::new();
+    let mut t1 = 0usize;
+    let mut t2 = 0usize;
+    let mut t3 = 0usize;
+    let mut t4 = 0usize;
+    for chk in checks {
+        ensure!(check_ids.insert(chk.id), "duplicate check id {}", chk.id);
+        match chk.tier {
+            Tier::Tier1 => t1 += 1,
+            Tier::Tier2 => t2 += 1,
+            Tier::Tier3 => t3 += 1,
+            Tier::Tier4 => t4 += 1,
+        }
+    }
+    ensure!(t1 == 155, "expected 155 Tier 1 checks, got {t1}");
+    ensure!(t2 == 155, "expected 155 Tier 2 checks, got {t2}");
+    ensure!(t3 == 34, "expected 34 Tier 3 checks, got {t3}");
+    ensure!(t4 == 16, "expected 16 Tier 4 checks, got {t4}");
+
+    Ok(())
+}

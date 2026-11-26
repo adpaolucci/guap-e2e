@@ -1,0 +1,21 @@
+[package]
+name = "e2e-runner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "guap-e2e"
+path = "src/main.rs"
+
+[dependencies]
+e2e-fixtures.workspace = true
+e2e-tiers.workspace = true
+e2e-r4.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true

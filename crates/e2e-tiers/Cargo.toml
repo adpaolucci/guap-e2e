@@ -1,0 +1,23 @@
+[package]
+name = "e2e-tiers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "mock-guap-suite"
+path = "src/bin/mock_guap_suite.rs"
+
+[dependencies]
+e2e-fixtures.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+hex.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+walkdir.workspace = true

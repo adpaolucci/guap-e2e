@@ -3715,12 +3715,8 @@ fn tag_helper_body_is_non_stub(
         return false;
     }
     let lower_name = f.name.to_ascii_lowercase();
-    if (lower_name.contains("keymaterial") || (lower_name.contains("_km_") && !is_mut_bitmask_memo))
-        && !sc.saw_km_or_tag_inspect
-    {
-        return false;
-    }
-    true
+    !((lower_name.contains("keymaterial") || (lower_name.contains("_km_") && !is_mut_bitmask_memo))
+        && !sc.saw_km_or_tag_inspect)
 }
 
 fn is_safe_tag_helper_return(

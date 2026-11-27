@@ -56,6 +56,14 @@ fn test_live_smoke_guap_kit_unbuilt_and_built_suites_via_run_tiers() {
         kit_report.passed
     );
 
+    if !root.join("forensics2rust/Cargo.toml").is_file() {
+        eprintln!(
+            "Skipping built-suite live smoke: sibling suites not present under {}",
+            root.display()
+        );
+        return;
+    }
+
     // 2) Built suites executed strictly end-to-end through run_tiers(Tier::all())
     for ws in [
         TargetWorkspace::Forensics2Rust,

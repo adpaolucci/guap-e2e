@@ -1,7 +1,10 @@
+use crate::util::{
+    FIXED_FILETIME, crc32_ieee, read_u16_le, read_u32_le, read_u64_le, sha1_digest, utf16le_bytes,
+    write_file_deterministic,
+};
+use anyhow::{Result, ensure};
 use std::collections::BTreeSet;
 use std::path::Path;
-use anyhow::{ensure, Result};
-use crate::util::{crc32_ieee, read_u16_le, read_u32_le, read_u64_le, sha1_digest, utf16le_bytes, write_file_deterministic, FIXED_FILETIME};
 
 const EVTX_FILE_HEADER_SIZE: usize = 4096;
 const EVTX_CHUNK_SIZE: usize = 65536;
@@ -223,36 +226,113 @@ fn build_event_record(chunk_offset: usize, record_id: u64, spec: &EvtxEventSpec<
     rec.extend_from_slice(&[0x0F, 0x01, 0x01, 0x00]);
 
     let prov_attrs = [
-        XmlAttr { name: "Name", val: XmlAttrVal::Literal(spec.provider) },
-        XmlAttr { name: "Guid", val: XmlAttrVal::OptSub(0, 0x0F) },
+        XmlAttr {
+            name: "Name",
+            val: XmlAttrVal::Literal(spec.provider),
+        },
+        XmlAttr {
+            name: "Guid",
+            val: XmlAttrVal::OptSub(0, 0x0F),
+        },
     ];
-    let time_attrs = [XmlAttr { name: "SystemTime", val: XmlAttrVal::OptSub(7, 0x11) }];
+    let time_attrs = [XmlAttr {
+        name: "SystemTime",
+        val: XmlAttrVal::OptSub(7, 0x11),
+    }];
     let exec_attrs = [
-        XmlAttr { name: "ProcessID", val: XmlAttrVal::OptSub(9, 0x08) },
-        XmlAttr { name: "ThreadID", val: XmlAttrVal::OptSub(10, 0x08) },
+        XmlAttr {
+            name: "ProcessID",
+            val: XmlAttrVal::OptSub(9, 0x08),
+        },
+        XmlAttr {
+            name: "ThreadID",
+            val: XmlAttrVal::OptSub(10, 0x08),
+        },
     ];
-    let sec_attrs = [XmlAttr { name: "UserID", val: XmlAttrVal::OptSub(13, 0x13) }];
+    let sec_attrs = [XmlAttr {
+        name: "UserID",
+        val: XmlAttrVal::OptSub(13, 0x13),
+    }];
 
     let sys_children = [
-        XmlNode { name: "Provider", attrs: &prov_attrs, content: ElementContent::Empty },
-        XmlNode { name: "EventID", attrs: &[], content: ElementContent::TextSub(1, 0x06) },
-        XmlNode { name: "Version", attrs: &[], content: ElementContent::TextSub(2, 0x04) },
-        XmlNode { name: "Level", attrs: &[], content: ElementContent::TextSub(3, 0x04) },
-        XmlNode { name: "Task", attrs: &[], content: ElementContent::TextSub(4, 0x06) },
-        XmlNode { name: "Opcode", attrs: &[], content: ElementContent::TextSub(5, 0x04) },
-        XmlNode { name: "Keywords", attrs: &[], content: ElementContent::TextSub(6, 0x15) },
-        XmlNode { name: "TimeCreated", attrs: &time_attrs, content: ElementContent::Empty },
-        XmlNode { name: "EventRecordID", attrs: &[], content: ElementContent::TextSub(8, 0x0A) },
-        XmlNode { name: "Correlation", attrs: &[], content: ElementContent::Empty },
-        XmlNode { name: "Execution", attrs: &exec_attrs, content: ElementContent::Empty },
-        XmlNode { name: "Channel", attrs: &[], content: ElementContent::TextSub(11, 0x01) },
-        XmlNode { name: "Computer", attrs: &[], content: ElementContent::TextSub(12, 0x01) },
-        XmlNode { name: "Security", attrs: &sec_attrs, content: ElementContent::Empty },
+        XmlNode {
+            name: "Provider",
+            attrs: &prov_attrs,
+            content: ElementContent::Empty,
+        },
+        XmlNode {
+            name: "EventID",
+            attrs: &[],
+            content: ElementContent::TextSub(1, 0x06),
+        },
+        XmlNode {
+            name: "Version",
+            attrs: &[],
+            content: ElementContent::TextSub(2, 0x04),
+        },
+        XmlNode {
+            name: "Level",
+            attrs: &[],
+            content: ElementContent::TextSub(3, 0x04),
+        },
+        XmlNode {
+            name: "Task",
+            attrs: &[],
+            content: ElementContent::TextSub(4, 0x06),
+        },
+        XmlNode {
+            name: "Opcode",
+            attrs: &[],
+            content: ElementContent::TextSub(5, 0x04),
+        },
+        XmlNode {
+            name: "Keywords",
+            attrs: &[],
+            content: ElementContent::TextSub(6, 0x15),
+        },
+        XmlNode {
+            name: "TimeCreated",
+            attrs: &time_attrs,
+            content: ElementContent::Empty,
+        },
+        XmlNode {
+            name: "EventRecordID",
+            attrs: &[],
+            content: ElementContent::TextSub(8, 0x0A),
+        },
+        XmlNode {
+            name: "Correlation",
+            attrs: &[],
+            content: ElementContent::Empty,
+        },
+        XmlNode {
+            name: "Execution",
+            attrs: &exec_attrs,
+            content: ElementContent::Empty,
+        },
+        XmlNode {
+            name: "Channel",
+            attrs: &[],
+            content: ElementContent::TextSub(11, 0x01),
+        },
+        XmlNode {
+            name: "Computer",
+            attrs: &[],
+            content: ElementContent::TextSub(12, 0x01),
+        },
+        XmlNode {
+            name: "Security",
+            attrs: &sec_attrs,
+            content: ElementContent::Empty,
+        },
     ];
 
     let mut data_attr_storage: Vec<[XmlAttr<'_>; 1]> = Vec::with_capacity(spec.data_fields.len());
     for (fname, _) in &spec.data_fields {
-        data_attr_storage.push([XmlAttr { name: "Name", val: XmlAttrVal::Literal(fname) }]);
+        data_attr_storage.push([XmlAttr {
+            name: "Name",
+            val: XmlAttrVal::Literal(fname),
+        }]);
     }
     let mut data_nodes: Vec<XmlNode<'_>> = Vec::with_capacity(spec.data_fields.len());
     for (i, (_, val)) in spec.data_fields.iter().enumerate() {
@@ -268,10 +348,22 @@ fn build_event_record(chunk_offset: usize, record_id: u64, spec: &EvtxEventSpec<
         val: XmlAttrVal::Literal("http://schemas.microsoft.com/win/2004/08/events/event"),
     }];
     let root_children = [
-        XmlNode { name: "System", attrs: &[], content: ElementContent::Children(&sys_children) },
-        XmlNode { name: "EventData", attrs: &[], content: ElementContent::Children(&data_nodes) },
+        XmlNode {
+            name: "System",
+            attrs: &[],
+            content: ElementContent::Children(&sys_children),
+        },
+        XmlNode {
+            name: "EventData",
+            attrs: &[],
+            content: ElementContent::Children(&data_nodes),
+        },
     ];
-    let root = XmlNode { name: "Event", attrs: &event_attrs, content: ElementContent::Children(&root_children) };
+    let root = XmlNode {
+        name: "Event",
+        attrs: &event_attrs,
+        content: ElementContent::Children(&root_children),
+    };
 
     encode_xml_node(&mut rec, chunk_offset, &root);
     rec.push(0x00);
@@ -313,7 +405,10 @@ fn build_evtx_file(events: &[EvtxEventSpec<'_>]) -> Result<Vec<u8>> {
     let mut last_rec_off = EVTX_CHUNK_HEADER_SIZE;
     for (idx, ev) in events.iter().enumerate() {
         let rec_bytes = build_event_record(cursor, (idx + 1) as u64, ev);
-        ensure!(cursor + rec_bytes.len() <= EVTX_CHUNK_SIZE, "EVTX chunk overflow");
+        ensure!(
+            cursor + rec_bytes.len() <= EVTX_CHUNK_SIZE,
+            "EVTX chunk overflow"
+        );
         last_rec_off = cursor;
         chunk[cursor..cursor + rec_bytes.len()].copy_from_slice(&rec_bytes);
         cursor += rec_bytes.len();
@@ -383,20 +478,46 @@ pub fn generate_evtx_dir(evtx_dir: &Path) -> Result<()> {
             event_id: 4688,
             data_fields: vec![
                 ("NewProcessId", SubValue::HexInt32(0x14A0)),
-                ("NewProcessName", SubValue::String(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe".into())),
-                ("CommandLine", SubValue::String("powershell.exe -NoProfile -File C:\\Scripts\\audit.ps1".into())),
-                ("ParentProcessName", SubValue::String(r"C:\Windows\explorer.exe".into())),
+                (
+                    "NewProcessName",
+                    SubValue::String(
+                        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe".into(),
+                    ),
+                ),
+                (
+                    "CommandLine",
+                    SubValue::String(
+                        "powershell.exe -NoProfile -File C:\\Scripts\\audit.ps1".into(),
+                    ),
+                ),
+                (
+                    "ParentProcessName",
+                    SubValue::String(r"C:\Windows\explorer.exe".into()),
+                ),
                 ("ProcessId", SubValue::HexInt32(0x08B0)),
                 ("SubjectUserName", SubValue::String("alice".into())),
                 ("TokenElevationType", SubValue::String("%%1936".into())),
             ],
         },
     ];
-    write_file_deterministic(&evtx_dir.join("Security.evtx"), &build_evtx_file(&sec_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Security.evtx"),
+        &build_evtx_file(&sec_events)?,
+    )?;
 
     let sys_events = vec![
-        EvtxEventSpec { provider: "EventLog", channel: "System", event_id: 6005, data_fields: vec![("Binary", SubValue::String("EventLogStarted".into()))] },
-        EvtxEventSpec { provider: "EventLog", channel: "System", event_id: 6006, data_fields: vec![("Binary", SubValue::String("EventLogStopped".into()))] },
+        EvtxEventSpec {
+            provider: "EventLog",
+            channel: "System",
+            event_id: 6005,
+            data_fields: vec![("Binary", SubValue::String("EventLogStarted".into()))],
+        },
+        EvtxEventSpec {
+            provider: "EventLog",
+            channel: "System",
+            event_id: 6006,
+            data_fields: vec![("Binary", SubValue::String("EventLogStopped".into()))],
+        },
         EvtxEventSpec {
             provider: "User32",
             channel: "System",
@@ -404,45 +525,75 @@ pub fn generate_evtx_dir(evtx_dir: &Path) -> Result<()> {
             data_fields: vec![
                 ("param1", SubValue::String("svchost.exe".into())),
                 ("param2", SubValue::String("GUAP-WKSTN01".into())),
-                ("param3", SubValue::String("Operating System: Upgrade".into())),
+                (
+                    "param3",
+                    SubValue::String("Operating System: Upgrade".into()),
+                ),
                 ("param4", SubValue::String("0x80020010".into())),
                 ("param5", SubValue::String("restart".into())),
             ],
         },
     ];
-    write_file_deterministic(&evtx_dir.join("System.evtx"), &build_evtx_file(&sys_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("System.evtx"),
+        &build_evtx_file(&sys_events)?,
+    )?;
 
     let wlan_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-WLAN-AutoConfig",
         channel: "Microsoft-Windows-WLAN-AutoConfig/Operational",
         event_id: 8001,
         data_fields: vec![
-            ("InterfaceGuid", SubValue::String("{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}".into())),
-            ("InterfaceDescription", SubValue::String("GUAP Virtual Wi-Fi Adapter".into())),
-            ("ConnectionMode", SubValue::String("Automatic connection with a profile".into())),
+            (
+                "InterfaceGuid",
+                SubValue::String("{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}".into()),
+            ),
+            (
+                "InterfaceDescription",
+                SubValue::String("GUAP Virtual Wi-Fi Adapter".into()),
+            ),
+            (
+                "ConnectionMode",
+                SubValue::String("Automatic connection with a profile".into()),
+            ),
             ("ProfileName", SubValue::String("GUAP-Lab-5G".into())),
             ("SSID", SubValue::String("GUAP-Lab-5G".into())),
             ("BSSID", SubValue::String("AA:BB:CC:11:22:33".into())),
-            ("AuthenticationAlgorithm", SubValue::String("RSNA_PSK".into())),
+            (
+                "AuthenticationAlgorithm",
+                SubValue::String("RSNA_PSK".into()),
+            ),
             ("CipherAlgorithm", SubValue::String("CCMP".into())),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-WLAN-AutoConfig%4Operational.evtx"), &build_evtx_file(&wlan_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Microsoft-Windows-WLAN-AutoConfig%4Operational.evtx"),
+        &build_evtx_file(&wlan_events)?,
+    )?;
 
     let def_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-Windows Defender",
         channel: "Microsoft-Windows-Windows Defender/Operational",
         event_id: 1116,
         data_fields: vec![
-            ("Threat Name", SubValue::String("Trojan:Win32/EICAR_Test_File".into())),
+            (
+                "Threat Name",
+                SubValue::String("Trojan:Win32/EICAR_Test_File".into()),
+            ),
             ("Severity Name", SubValue::String("Severe".into())),
             ("Category Name", SubValue::String("Trojan".into())),
             ("Path", SubValue::String("file:_C:\\Temp\\eicar.bin".into())),
-            ("Process Name", SubValue::String(r"C:\Tools\test.exe".into())),
+            (
+                "Process Name",
+                SubValue::String(r"C:\Tools\test.exe".into()),
+            ),
             ("Action Name", SubValue::String("Quarantine".into())),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-Windows Defender%4Operational.evtx"), &build_evtx_file(&def_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Microsoft-Windows-Windows Defender%4Operational.evtx"),
+        &build_evtx_file(&def_events)?,
+    )?;
 
     let lsm_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-TerminalServices-LocalSessionManager",
@@ -454,7 +605,10 @@ pub fn generate_evtx_dir(evtx_dir: &Path) -> Result<()> {
             ("Address", SubValue::String("192.168.10.50".into())),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx"), &build_evtx_file(&lsm_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Microsoft-Windows-TerminalServices-LocalSessionManager%4Operational.evtx"),
+        &build_evtx_file(&lsm_events)?,
+    )?;
 
     let rcm_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-TerminalServices-RemoteConnectionManager",
@@ -466,7 +620,11 @@ pub fn generate_evtx_dir(evtx_dir: &Path) -> Result<()> {
             ("Param3", SubValue::String("192.168.10.50".into())),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-TerminalServices-RemoteConnectionManager%4Operational.evtx"), &build_evtx_file(&rcm_events)?)?;
+    write_file_deterministic(
+        &evtx_dir
+            .join("Microsoft-Windows-TerminalServices-RemoteConnectionManager%4Operational.evtx"),
+        &build_evtx_file(&rcm_events)?,
+    )?;
 
     let ps_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-PowerShell",
@@ -475,12 +633,21 @@ pub fn generate_evtx_dir(evtx_dir: &Path) -> Result<()> {
         data_fields: vec![
             ("MessageNumber", SubValue::UInt32(1)),
             ("MessageTotal", SubValue::UInt32(1)),
-            ("ScriptBlockText", SubValue::String("Get-Process | Select-Object -First 5".into())),
-            ("ScriptBlockId", SubValue::String("11111111-2222-3333-4444-555555555555".into())),
+            (
+                "ScriptBlockText",
+                SubValue::String("Get-Process | Select-Object -First 5".into()),
+            ),
+            (
+                "ScriptBlockId",
+                SubValue::String("11111111-2222-3333-4444-555555555555".into()),
+            ),
             ("Path", SubValue::String(r"C:\Scripts\audit.ps1".into())),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-PowerShell%4Operational.evtx"), &build_evtx_file(&ps_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Microsoft-Windows-PowerShell%4Operational.evtx"),
+        &build_evtx_file(&ps_events)?,
+    )?;
 
     let task_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-TaskScheduler",
@@ -488,23 +655,40 @@ pub fn generate_evtx_dir(evtx_dir: &Path) -> Result<()> {
         event_id: 106,
         data_fields: vec![
             ("TaskName", SubValue::String(r"\GUAP\NightlyAudit".into())),
-            ("UserContext", SubValue::String(r"NT AUTHORITY\SYSTEM".into())),
+            (
+                "UserContext",
+                SubValue::String(r"NT AUTHORITY\SYSTEM".into()),
+            ),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-TaskScheduler%4Operational.evtx"), &build_evtx_file(&task_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Microsoft-Windows-TaskScheduler%4Operational.evtx"),
+        &build_evtx_file(&task_events)?,
+    )?;
 
     let pnp_events = vec![EvtxEventSpec {
         provider: "Microsoft-Windows-Kernel-PnP",
         channel: "Microsoft-Windows-Kernel-PnP/Configuration",
         event_id: 400,
         data_fields: vec![
-            ("DeviceInstanceId", SubValue::String(r"USBSTOR\DISK&VEN_SANDISK&PROD_ULTRA&REV_1.00\4C530001231020118273&0".into())),
+            (
+                "DeviceInstanceId",
+                SubValue::String(
+                    r"USBSTOR\DISK&VEN_SANDISK&PROD_ULTRA&REV_1.00\4C530001231020118273&0".into(),
+                ),
+            ),
             ("DriverName", SubValue::String("disk.inf".into())),
-            ("ClassGuid", SubValue::String("{4d36e967-e325-11ce-bfc1-08002be10318}".into())),
+            (
+                "ClassGuid",
+                SubValue::String("{4d36e967-e325-11ce-bfc1-08002be10318}".into()),
+            ),
             ("ServiceName", SubValue::String("disk".into())),
         ],
     }];
-    write_file_deterministic(&evtx_dir.join("Microsoft-Windows-Kernel-PnP%4Configuration.evtx"), &build_evtx_file(&pnp_events)?)?;
+    write_file_deterministic(
+        &evtx_dir.join("Microsoft-Windows-Kernel-PnP%4Configuration.evtx"),
+        &build_evtx_file(&pnp_events)?,
+    )?;
 
     Ok(())
 }
@@ -526,34 +710,74 @@ pub fn verify_evtx_dir(evtx_dir: &Path) -> Result<(usize, Vec<String>)> {
 
     for name in &expected_files {
         let buf = std::fs::read(evtx_dir.join(name))?;
-        ensure!(buf.len() == EVTX_FILE_HEADER_SIZE + EVTX_CHUNK_SIZE, "{}: bad size", name);
+        ensure!(
+            buf.len() == EVTX_FILE_HEADER_SIZE + EVTX_CHUNK_SIZE,
+            "{}: bad size",
+            name
+        );
         ensure!(&buf[0..8] == b"ElfFile\0", "{}: bad ElfFile magic", name);
         ensure!(read_u32_le(&buf, 32)? == 128, "{}: bad header_size", name);
         ensure!(read_u16_le(&buf, 36)? == 1, "{}: bad minor_version", name);
         ensure!(read_u16_le(&buf, 38)? == 3, "{}: bad major_version", name);
         ensure!(read_u16_le(&buf, 40)? == 4096, "{}: bad block_size", name);
-        ensure!(read_u32_le(&buf, 124)? == crc32_ieee(&buf[0..120]), "{}: file header CRC32 mismatch", name);
+        ensure!(
+            read_u32_le(&buf, 124)? == crc32_ieee(&buf[0..120]),
+            "{}: file header CRC32 mismatch",
+            name
+        );
 
         let chunk = &buf[EVTX_FILE_HEADER_SIZE..];
         ensure!(&chunk[0..8] == b"ElfChnk\0", "{}: bad ElfChnk magic", name);
         let free_off = read_u32_le(chunk, 48)? as usize;
-        ensure!(free_off > EVTX_CHUNK_HEADER_SIZE && free_off <= EVTX_CHUNK_SIZE, "{}: invalid free_space_offset", name);
-        ensure!(read_u32_le(chunk, 52)? == crc32_ieee(&chunk[EVTX_CHUNK_HEADER_SIZE..free_off]), "{}: events CRC32 mismatch", name);
+        ensure!(
+            free_off > EVTX_CHUNK_HEADER_SIZE && free_off <= EVTX_CHUNK_SIZE,
+            "{}: invalid free_space_offset",
+            name
+        );
+        ensure!(
+            read_u32_le(chunk, 52)? == crc32_ieee(&chunk[EVTX_CHUNK_HEADER_SIZE..free_off]),
+            "{}: events CRC32 mismatch",
+            name
+        );
         let mut hdr_crc_in = Vec::with_capacity(120 + 384);
         hdr_crc_in.extend_from_slice(&chunk[0..120]);
         hdr_crc_in.extend_from_slice(&chunk[128..512]);
-        ensure!(read_u32_le(chunk, 124)? == crc32_ieee(&hdr_crc_in), "{}: chunk header CRC32 mismatch", name);
+        ensure!(
+            read_u32_le(chunk, 124)? == crc32_ieee(&hdr_crc_in),
+            "{}: chunk header CRC32 mismatch",
+            name
+        );
 
         let mut pos = EVTX_CHUNK_HEADER_SIZE;
         let mut rec_count = 0usize;
         while pos < free_off {
-            ensure!(&chunk[pos..pos + 4] == b"\x2a\x2a\x00\x00", "{}: bad record magic", name);
+            ensure!(
+                &chunk[pos..pos + 4] == b"\x2a\x2a\x00\x00",
+                "{}: bad record magic",
+                name
+            );
             let sz = read_u32_le(chunk, pos + 4)? as usize;
-            ensure!(sz >= 32 && pos + sz <= free_off, "{}: invalid record size", name);
-            ensure!(sz == read_u32_le(chunk, pos + sz - 4)? as usize, "{}: record size tail mismatch", name);
+            ensure!(
+                sz >= 32 && pos + sz <= free_off,
+                "{}: invalid record size",
+                name
+            );
+            ensure!(
+                sz == read_u32_le(chunk, pos + sz - 4)? as usize,
+                "{}: record size tail mismatch",
+                name
+            );
             let _rec_id = read_u64_le(chunk, pos + 8)?;
-            ensure!(chunk[pos + 0x18..pos + 0x1C] == [0x0F, 0x01, 0x01, 0x00], "{}: bad BinXML FragmentHeader", name);
-            ensure!(chunk[pos + 0x1C] == 0x0C, "{}: missing TemplateInstance 0x0C", name);
+            ensure!(
+                chunk[pos + 0x18..pos + 0x1C] == [0x0F, 0x01, 0x01, 0x00],
+                "{}: bad BinXML FragmentHeader",
+                name
+            );
+            ensure!(
+                chunk[pos + 0x1C] == 0x0C,
+                "{}: missing TemplateInstance 0x0C",
+                name
+            );
             let tpl_id = read_u32_le(chunk, pos + 0x1E)?;
             found_event_ids.insert(tpl_id);
             pos += sz;
@@ -562,8 +786,14 @@ pub fn verify_evtx_dir(evtx_dir: &Path) -> Result<(usize, Vec<String>)> {
         details.push(format!("evtx/{}: {} events verified", name, rec_count));
     }
 
-    for required in [4624u32, 4634, 4688, 6005, 6006, 1074, 8001, 1116, 21, 1149, 4104, 106, 400] {
-        ensure!(found_event_ids.contains(&required), "EVTX missing required EventID {}", required);
+    for required in [
+        4624u32, 4634, 4688, 6005, 6006, 1074, 8001, 1116, 21, 1149, 4104, 106, 400,
+    ] {
+        ensure!(
+            found_event_ids.contains(&required),
+            "EVTX missing required EventID {}",
+            required
+        );
     }
 
     Ok((expected_files.len(), details))

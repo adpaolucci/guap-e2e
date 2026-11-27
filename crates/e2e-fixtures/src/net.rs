@@ -1,6 +1,8 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
-use crate::util::{read_u16_be, read_u16_le, read_u32_le, write_file_deterministic, FIXED_UNIX_SECS};
+use crate::util::{
+    FIXED_UNIX_SECS, read_u16_be, read_u16_le, read_u32_le, write_file_deterministic,
+};
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 fn rfc1071_sum(data: &[u8], init: u32) -> u16 {
     let mut sum = init;
@@ -191,41 +193,77 @@ pub fn build_ethernet_pcap() -> Vec<u8> {
     let mut pkts = Vec::new();
 
     // 1. ARP Request
-    pkts.push((t0, 0, eth_arp(mac_cli, mac_bcast, 1, mac_cli, ip_cli, [0; 6], ip_gw)));
+    pkts.push((
+        t0,
+        0,
+        eth_arp(mac_cli, mac_bcast, 1, mac_cli, ip_cli, [0; 6], ip_gw),
+    ));
     // 2. ARP Reply
-    pkts.push((t0, 1000, eth_arp(mac_gw, mac_cli, 2, mac_gw, ip_gw, mac_cli, ip_cli)));
+    pkts.push((
+        t0,
+        1000,
+        eth_arp(mac_gw, mac_cli, 2, mac_gw, ip_gw, mac_cli, ip_cli),
+    ));
 
     // 3..6 DHCP Discover, Offer, Request, Ack
-    let d_disc = bootp_dhcp(1, [0; 4], mac_cli, &[53, 1, 1, 12, 9, b'g', b'u', b'a', b'p', b'-', b'h', b'o', b's', b't']);
-    pkts.push((t0 + 1, 0, eth_ipv4_udp(mac_cli, mac_bcast, [0; 4], [255; 4], 68, 67, &d_disc, 1)));
+    let d_disc = bootp_dhcp(
+        1,
+        [0; 4],
+        mac_cli,
+        &[
+            53, 1, 1, 12, 9, b'g', b'u', b'a', b'p', b'-', b'h', b'o', b's', b't',
+        ],
+    );
+    pkts.push((
+        t0 + 1,
+        0,
+        eth_ipv4_udp(mac_cli, mac_bcast, [0; 4], [255; 4], 68, 67, &d_disc, 1),
+    ));
 
-    let d_offer = bootp_dhcp(2, ip_cli, mac_cli, &[
-        53, 1, 2,
-        1, 4, 255, 255, 255, 0,
-        3, 4, 192, 168, 10, 1,
-        6, 4, 192, 168, 10, 1,
-        51, 4, 0, 1, 0x51, 0x80,
-        54, 4, 192, 168, 10, 1,
-    ]);
-    pkts.push((t0 + 1, 2000, eth_ipv4_udp(mac_gw, mac_bcast, ip_gw, [255; 4], 67, 68, &d_offer, 2)));
+    let d_offer = bootp_dhcp(
+        2,
+        ip_cli,
+        mac_cli,
+        &[
+            53, 1, 2, 1, 4, 255, 255, 255, 0, 3, 4, 192, 168, 10, 1, 6, 4, 192, 168, 10, 1, 51, 4,
+            0, 1, 0x51, 0x80, 54, 4, 192, 168, 10, 1,
+        ],
+    );
+    pkts.push((
+        t0 + 1,
+        2000,
+        eth_ipv4_udp(mac_gw, mac_bcast, ip_gw, [255; 4], 67, 68, &d_offer, 2),
+    ));
 
-    let d_req = bootp_dhcp(1, [0; 4], mac_cli, &[
-        53, 1, 3,
-        50, 4, 192, 168, 10, 50,
-        54, 4, 192, 168, 10, 1,
-        12, 9, b'g', b'u', b'a', b'p', b'-', b'h', b'o', b's', b't',
-    ]);
-    pkts.push((t0 + 1, 3000, eth_ipv4_udp(mac_cli, mac_bcast, [0; 4], [255; 4], 68, 67, &d_req, 3)));
+    let d_req = bootp_dhcp(
+        1,
+        [0; 4],
+        mac_cli,
+        &[
+            53, 1, 3, 50, 4, 192, 168, 10, 50, 54, 4, 192, 168, 10, 1, 12, 9, b'g', b'u', b'a',
+            b'p', b'-', b'h', b'o', b's', b't',
+        ],
+    );
+    pkts.push((
+        t0 + 1,
+        3000,
+        eth_ipv4_udp(mac_cli, mac_bcast, [0; 4], [255; 4], 68, 67, &d_req, 3),
+    ));
 
-    let d_ack = bootp_dhcp(2, ip_cli, mac_cli, &[
-        53, 1, 5,
-        51, 4, 0, 1, 0x51, 0x80,
-        1, 4, 255, 255, 255, 0,
-        3, 4, 192, 168, 10, 1,
-        6, 4, 192, 168, 10, 1,
-        54, 4, 192, 168, 10, 1,
-    ]);
-    pkts.push((t0 + 1, 4000, eth_ipv4_udp(mac_gw, mac_bcast, ip_gw, [255; 4], 67, 68, &d_ack, 4)));
+    let d_ack = bootp_dhcp(
+        2,
+        ip_cli,
+        mac_cli,
+        &[
+            53, 1, 5, 51, 4, 0, 1, 0x51, 0x80, 1, 4, 255, 255, 255, 0, 3, 4, 192, 168, 10, 1, 6, 4,
+            192, 168, 10, 1, 54, 4, 192, 168, 10, 1,
+        ],
+    );
+    pkts.push((
+        t0 + 1,
+        4000,
+        eth_ipv4_udp(mac_gw, mac_bcast, ip_gw, [255; 4], 67, 68, &d_ack, 4),
+    ));
 
     // 7. DNS Query (docs.example.org A)
     let mut dns_q = Vec::new();
@@ -236,7 +274,11 @@ pub fn build_ethernet_pcap() -> Vec<u8> {
     dns_q.extend_from_slice(b"\x04docs\x07example\x03org\x00");
     dns_q.extend_from_slice(&1u16.to_be_bytes());
     dns_q.extend_from_slice(&1u16.to_be_bytes());
-    pkts.push((t0 + 2, 0, eth_ipv4_udp(mac_cli, mac_gw, ip_cli, ip_gw, 54321, 53, &dns_q, 5)));
+    pkts.push((
+        t0 + 2,
+        0,
+        eth_ipv4_udp(mac_cli, mac_gw, ip_cli, ip_gw, 54321, 53, &dns_q, 5),
+    ));
 
     // 8. DNS Response
     let mut dns_r = Vec::new();
@@ -254,7 +296,11 @@ pub fn build_ethernet_pcap() -> Vec<u8> {
     dns_r.extend_from_slice(&300u32.to_be_bytes());
     dns_r.extend_from_slice(&4u16.to_be_bytes());
     dns_r.extend_from_slice(&ip_web);
-    pkts.push((t0 + 2, 5000, eth_ipv4_udp(mac_gw, mac_cli, ip_gw, ip_cli, 53, 54321, &dns_r, 6)));
+    pkts.push((
+        t0 + 2,
+        5000,
+        eth_ipv4_udp(mac_gw, mac_cli, ip_gw, ip_cli, 53, 54321, &dns_r, 6),
+    ));
 
     // 9. mDNS Announcement
     let mut mdns = Vec::new();
@@ -269,19 +315,86 @@ pub fn build_ethernet_pcap() -> Vec<u8> {
     mdns.extend_from_slice(&120u32.to_be_bytes());
     mdns.extend_from_slice(&4u16.to_be_bytes());
     mdns.extend_from_slice(&ip_cli);
-    pkts.push((t0 + 3, 0, eth_ipv4_udp(mac_cli, mac_mdns, ip_cli, [224, 0, 0, 251], 5353, 5353, &mdns, 7)));
+    pkts.push((
+        t0 + 3,
+        0,
+        eth_ipv4_udp(
+            mac_cli,
+            mac_mdns,
+            ip_cli,
+            [224, 0, 0, 251],
+            5353,
+            5353,
+            &mdns,
+            7,
+        ),
+    ));
 
     // 10. TCP SYN + 11. TCP SYN-ACK (15ms delta)
-    pkts.push((t0 + 4, 0, eth_ipv4_tcp(mac_cli, mac_gw, ip_cli, ip_web, 55000, 80, 1000, 0, 0x02, &[], 8)));
-    pkts.push((t0 + 4, 15_000, eth_ipv4_tcp(mac_gw, mac_cli, ip_web, ip_cli, 80, 55000, 2000, 1001, 0x12, &[], 9)));
+    pkts.push((
+        t0 + 4,
+        0,
+        eth_ipv4_tcp(
+            mac_cli,
+            mac_gw,
+            ip_cli,
+            ip_web,
+            55000,
+            80,
+            1000,
+            0,
+            0x02,
+            &[],
+            8,
+        ),
+    ));
+    pkts.push((
+        t0 + 4,
+        15_000,
+        eth_ipv4_tcp(
+            mac_gw,
+            mac_cli,
+            ip_web,
+            ip_cli,
+            80,
+            55000,
+            2000,
+            1001,
+            0x12,
+            &[],
+            9,
+        ),
+    ));
 
     // 12. HTTP/1.1 Request (NO credentials)
     let http_req = b"GET /index.html HTTP/1.1\r\nHost: docs.example.org\r\nUser-Agent: GuapTestClient/1.0\r\nAccept: text/html\r\n\r\n";
-    pkts.push((t0 + 4, 16_000, eth_ipv4_tcp(mac_cli, mac_gw, ip_cli, ip_web, 55000, 80, 1001, 2001, 0x18, http_req, 10)));
+    pkts.push((
+        t0 + 4,
+        16_000,
+        eth_ipv4_tcp(
+            mac_cli, mac_gw, ip_cli, ip_web, 55000, 80, 1001, 2001, 0x18, http_req, 10,
+        ),
+    ));
 
     // 13. HTTP/1.1 Response
     let http_resp = b"HTTP/1.1 200 OK\r\nServer: guap-http/1.0\r\nContent-Type: text/html\r\nContent-Length: 29\r\nSet-Cookie: ui_theme=dark; Path=/; HttpOnly; SameSite=Lax\r\n\r\n<html><body>OK!</body></html>";
-    pkts.push((t0 + 4, 30_000, eth_ipv4_tcp(mac_gw, mac_cli, ip_web, ip_cli, 80, 55000, 2001, 1001 + http_req.len() as u32, 0x18, http_resp, 11)));
+    pkts.push((
+        t0 + 4,
+        30_000,
+        eth_ipv4_tcp(
+            mac_gw,
+            mac_cli,
+            ip_web,
+            ip_cli,
+            80,
+            55000,
+            2001,
+            1001 + http_req.len() as u32,
+            0x18,
+            http_resp,
+            11,
+        ),
+    ));
 
     write_pcap(1, &pkts)
 }
@@ -315,8 +428,14 @@ pub fn build_wifi_80211_pcap() -> Vec<u8> {
 pub fn generate_net_dir(net_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(net_dir)?;
 
-    write_file_deterministic(&net_dir.join("capture_ethernet.pcap"), &build_ethernet_pcap())?;
-    write_file_deterministic(&net_dir.join("capture_wifi_80211.pcap"), &build_wifi_80211_pcap())?;
+    write_file_deterministic(
+        &net_dir.join("capture_ethernet.pcap"),
+        &build_ethernet_pcap(),
+    )?;
+    write_file_deterministic(
+        &net_dir.join("capture_wifi_80211.pcap"),
+        &build_wifi_80211_pcap(),
+    )?;
 
     let mock = serde_json::json!({
         "schema_version": 1,
@@ -363,8 +482,14 @@ pub fn verify_net_dir(net_dir: &Path) -> Result<(usize, Vec<String>)> {
     // 1. capture_ethernet.pcap
     let eth_pcap = std::fs::read(net_dir.join("capture_ethernet.pcap"))?;
     ensure!(read_u32_le(&eth_pcap, 0)? == 0xA1B2_C3D4, "bad PCAP magic");
-    ensure!(read_u16_le(&eth_pcap, 4)? == 2 && read_u16_le(&eth_pcap, 6)? == 4, "bad PCAP version");
-    ensure!(read_u32_le(&eth_pcap, 20)? == 1, "expected LINKTYPE_ETHERNET=1");
+    ensure!(
+        read_u16_le(&eth_pcap, 4)? == 2 && read_u16_le(&eth_pcap, 6)? == 4,
+        "bad PCAP version"
+    );
+    ensure!(
+        read_u32_le(&eth_pcap, 20)? == 1,
+        "expected LINKTYPE_ETHERNET=1"
+    );
 
     let mut off = 24usize;
     let mut pkt_count = 0usize;
@@ -372,37 +497,59 @@ pub fn verify_net_dir(net_dir: &Path) -> Result<(usize, Vec<String>)> {
         ensure!(off + 16 <= eth_pcap.len(), "truncated PCAP packet header");
         let incl_len = read_u32_le(&eth_pcap, off + 8)? as usize;
         off += 16;
-        ensure!(off + incl_len <= eth_pcap.len(), "truncated PCAP packet body");
+        ensure!(
+            off + incl_len <= eth_pcap.len(),
+            "truncated PCAP packet body"
+        );
         let frame = &eth_pcap[off..off + incl_len];
         let ethertype = read_u16_be(frame, 12)?;
         if ethertype == 0x0800 {
             let ip = &frame[14..34];
-            ensure!(rfc1071_sum(ip, 0) == 0, "IPv4 checksum failed on packet {}", pkt_count);
+            ensure!(
+                rfc1071_sum(ip, 0) == 0,
+                "IPv4 checksum failed on packet {}",
+                pkt_count
+            );
             let proto = ip[9];
             let src_ip: [u8; 4] = ip[12..16].try_into()?;
             let dst_ip: [u8; 4] = ip[16..20].try_into()?;
             let l4 = &frame[34..];
             if proto == 17 || proto == 6 {
                 let sum = rfc1071_sum(l4, pseudo_init(src_ip, dst_ip, proto, l4.len() as u16));
-                ensure!(sum == 0, "L4 checksum failed on packet {} proto {}", pkt_count, proto);
+                ensure!(
+                    sum == 0,
+                    "L4 checksum failed on packet {} proto {}",
+                    pkt_count,
+                    proto
+                );
             }
         }
         off += incl_len;
         pkt_count += 1;
     }
     ensure!(pkt_count >= 12, "expected >= 12 packets, got {}", pkt_count);
-    details.push(format!("net/capture_ethernet.pcap: {} packets (IPv4+L4 checksums OK)", pkt_count));
+    details.push(format!(
+        "net/capture_ethernet.pcap: {} packets (IPv4+L4 checksums OK)",
+        pkt_count
+    ));
 
     // 2. capture_wifi_80211.pcap
     let wifi_pcap = std::fs::read(net_dir.join("capture_wifi_80211.pcap"))?;
-    ensure!(read_u32_le(&wifi_pcap, 0)? == 0xA1B2_C3D4 && read_u32_le(&wifi_pcap, 20)? == 105, "bad 802.11 PCAP");
+    ensure!(
+        read_u32_le(&wifi_pcap, 0)? == 0xA1B2_C3D4 && read_u32_le(&wifi_pcap, 20)? == 105,
+        "bad 802.11 PCAP"
+    );
     let w_str = String::from_utf8_lossy(&wifi_pcap);
     ensure!(w_str.contains("GUAP-Lab-5G"), "802.11 beacon missing SSID");
     details.push("net/capture_wifi_80211.pcap: LINKTYPE_IEEE802_11 beacon verified".into());
 
     // 3. wlan_ble_mock.json
-    let mock: serde_json::Value = serde_json::from_slice(&std::fs::read(net_dir.join("wlan_ble_mock.json"))?)?;
-    ensure!(mock["wlan_interfaces"][0]["ssid"] == "GUAP-Lab-5G", "bad wlan_ble_mock.json");
+    let mock: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(net_dir.join("wlan_ble_mock.json"))?)?;
+    ensure!(
+        mock["wlan_interfaces"][0]["ssid"] == "GUAP-Lab-5G",
+        "bad wlan_ble_mock.json"
+    );
     details.push("net/wlan_ble_mock.json: verified".into());
 
     Ok((3, details))

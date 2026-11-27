@@ -1,6 +1,8 @@
+use crate::util::{
+    FIXED_FILETIME, read_u16_le, read_u32_le, utf16le_bytes, utf16le_nul, write_file_deterministic,
+};
+use anyhow::{Result, ensure};
 use std::path::Path;
-use anyhow::{ensure, Result};
-use crate::util::{read_u16_le, read_u32_le, utf16le_bytes, utf16le_nul, write_file_deterministic, FIXED_FILETIME};
 
 fn build_nk2() -> Vec<u8> {
     let mut out = Vec::new();
@@ -25,7 +27,12 @@ fn build_nk2() -> Vec<u8> {
     };
 
     for (nick, name, email, weight) in [
-        ("Alice Vance", "Alice Vance", "alice.vance@example.org", 500u32),
+        (
+            "Alice Vance",
+            "Alice Vance",
+            "alice.vance@example.org",
+            500u32,
+        ),
         ("Bob Chen", "Bob Chen", "bob.chen@example.org", 250u32),
     ] {
         out.extend_from_slice(&7u32.to_le_bytes()); // prop_count = 7
@@ -40,9 +47,8 @@ fn build_nk2() -> Vec<u8> {
         out.extend_from_slice(&0u32.to_le_bytes());
         out.extend_from_slice(&0u64.to_le_bytes());
         let entry_id: [u8; 24] = [
-            0, 0, 0, 0,
-            0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD, 0x01, 0x0F, 0x54, 0x02,
-            0, 0, 0, 1,
+            0, 0, 0, 0, 0x81, 0x2B, 0x1F, 0xA4, 0xBE, 0xA3, 0x10, 0x19, 0x9D, 0x6E, 0x00, 0xDD,
+            0x01, 0x0F, 0x54, 0x02, 0, 0, 0, 1,
         ];
         out.extend_from_slice(&(entry_id.len() as u32).to_le_bytes());
         out.extend_from_slice(&entry_id);
@@ -132,14 +138,86 @@ fn build_msg_cfb() -> Vec<u8> {
     let no = 0xFFFF_FFFFu32;
     let mut dir = Vec::with_capacity(3 * 512);
     dir.extend_from_slice(&msg_dir_entry("Root Entry", 5, 1, no, no, 3, 5, 1024));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_0037001F", 2, 0, no, no, no, 0, p0.len() as u64));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_1000001F", 2, 0, no, no, no, 1, p1.len() as u64));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_0C1F001F", 2, 1, 4, 5, no, 2, p2.len() as u64));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_0C1A001F", 2, 1, 1, no, no, 3, p3.len() as u64));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_1035001F", 2, 1, 2, 6, no, 4, p4.len() as u64));
-    dir.extend_from_slice(&msg_dir_entry("__attach_version1.0_#00000000", 1, 0, no, no, 7, 0, 0));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_3707001F", 2, 1, 8, no, no, 5, p5.len() as u64));
-    dir.extend_from_slice(&msg_dir_entry("__substg1.0_37010102", 2, 0, no, no, no, 6, p6.len() as u64));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_0037001F",
+        2,
+        0,
+        no,
+        no,
+        no,
+        0,
+        p0.len() as u64,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_1000001F",
+        2,
+        0,
+        no,
+        no,
+        no,
+        1,
+        p1.len() as u64,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_0C1F001F",
+        2,
+        1,
+        4,
+        5,
+        no,
+        2,
+        p2.len() as u64,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_0C1A001F",
+        2,
+        1,
+        1,
+        no,
+        no,
+        3,
+        p3.len() as u64,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_1035001F",
+        2,
+        1,
+        2,
+        6,
+        no,
+        4,
+        p4.len() as u64,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__attach_version1.0_#00000000",
+        1,
+        0,
+        no,
+        no,
+        7,
+        0,
+        0,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_3707001F",
+        2,
+        1,
+        8,
+        no,
+        no,
+        5,
+        p5.len() as u64,
+    ));
+    dir.extend_from_slice(&msg_dir_entry(
+        "__substg1.0_37010102",
+        2,
+        0,
+        no,
+        no,
+        no,
+        6,
+        p6.len() as u64,
+    ));
     for _ in 9..12 {
         dir.extend_from_slice(&msg_dir_entry("", 0, 0, no, no, no, 0, 0));
     }
@@ -252,17 +330,33 @@ pub fn verify_mail_and_wpd_dirs(mail_dir: &Path, wpd_dir: &Path) -> Result<(usiz
     details.push("mail/outlook.NK2: 0x0D0A04BA 2 rows verified".into());
 
     let msg = std::fs::read(mail_dir.join("sample_attachment.msg"))?;
-    ensure!(msg[0..8] == [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1], "bad .msg CFBF magic");
-    ensure!(read_u16_le(&msg, 0x1E)? == 9 && read_u32_le(&msg, 512)? == 0xFFFF_FFFD, "bad .msg FAT");
+    ensure!(
+        msg[0..8] == [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1],
+        "bad .msg CFBF magic"
+    );
+    ensure!(
+        read_u16_le(&msg, 0x1E)? == 9 && read_u32_le(&msg, 512)? == 0xFFFF_FFFD,
+        "bad .msg FAT"
+    );
     verify_cfb_dir_rb_tree(&msg)?;
     details.push("mail/sample_attachment.msg: MS-CFB + MiniStream + RB-tree verified".into());
 
     let eml = std::fs::read_to_string(mail_dir.join("sample_attachment.eml"))?;
-    ensure!(eml.contains("GUAP-BOUNDARY-01") && eml.contains("R1VBUCBBdHRhY2htZW50IFBheWxvYWQK"), "bad .eml");
+    ensure!(
+        eml.contains("GUAP-BOUNDARY-01") && eml.contains("R1VBUCBBdHRhY2htZW50IFBheWxvYWQK"),
+        "bad .eml"
+    );
     details.push("mail/sample_attachment.eml: MIME verified".into());
 
-    let wpd: serde_json::Value = serde_json::from_slice(&std::fs::read(wpd_dir.join("wpd_device_tree.json"))?)?;
-    ensure!(wpd["devices"][0]["storages"][0]["objects"].as_array().map(|a| a.len()) == Some(2), "bad wpd_device_tree.json");
+    let wpd: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(wpd_dir.join("wpd_device_tree.json"))?)?;
+    ensure!(
+        wpd["devices"][0]["storages"][0]["objects"]
+            .as_array()
+            .map(|a| a.len())
+            == Some(2),
+        "bad wpd_device_tree.json"
+    );
     details.push("wpd/wpd_device_tree.json: 2 objects verified".into());
 
     Ok((4, details))
@@ -293,13 +387,35 @@ fn validate_rb_subtree(
     if did == NOSTREAM {
         return Ok(1);
     }
-    ensure!((did as usize) < entries.len(), "CFB DID {} out of range", did);
-    ensure!(visited.insert(did), "CFB directory cycle or shared node at DID {}", did);
+    ensure!(
+        (did as usize) < entries.len(),
+        "CFB DID {} out of range",
+        did
+    );
+    ensure!(
+        visited.insert(did),
+        "CFB directory cycle or shared node at DID {}",
+        did
+    );
     let node = &entries[did as usize];
-    ensure!(matches!(node.obj_type, 1 | 2 | 5), "CFB DID {} invalid obj_type {}", did, node.obj_type);
-    ensure!(node.color <= 1, "CFB DID {} invalid color {}", did, node.color);
+    ensure!(
+        matches!(node.obj_type, 1 | 2 | 5),
+        "CFB DID {} invalid obj_type {}",
+        did,
+        node.obj_type
+    );
+    ensure!(
+        node.color <= 1,
+        "CFB DID {} invalid color {}",
+        did,
+        node.color
+    );
     let is_red = node.color == 0;
-    ensure!(!(parent_red && is_red), "CFB RB violation: red child DID {} under red parent", did);
+    ensure!(
+        !(parent_red && is_red),
+        "CFB RB violation: red child DID {} under red parent",
+        did
+    );
 
     if let Some(lo) = min_bound {
         ensure!(
@@ -316,13 +432,41 @@ fn validate_rb_subtree(
         );
     }
 
-    let left_bh = validate_rb_subtree(entries, node.left, min_bound, Some(&node.name_upper), is_red, visited)?;
-    let right_bh = validate_rb_subtree(entries, node.right, Some(&node.name_upper), max_bound, is_red, visited)?;
-    ensure!(left_bh == right_bh, "CFB RB black-height mismatch at DID {}: {} != {}", did, left_bh, right_bh);
+    let left_bh = validate_rb_subtree(
+        entries,
+        node.left,
+        min_bound,
+        Some(&node.name_upper),
+        is_red,
+        visited,
+    )?;
+    let right_bh = validate_rb_subtree(
+        entries,
+        node.right,
+        Some(&node.name_upper),
+        max_bound,
+        is_red,
+        visited,
+    )?;
+    ensure!(
+        left_bh == right_bh,
+        "CFB RB black-height mismatch at DID {}: {} != {}",
+        did,
+        left_bh,
+        right_bh
+    );
 
     if node.obj_type == 1 && node.child != NOSTREAM {
-        ensure!((node.child as usize) < entries.len(), "CFB storage DID {} child out of range", did);
-        ensure!(entries[node.child as usize].color == 1, "CFB storage DID {} child root must be black", did);
+        ensure!(
+            (node.child as usize) < entries.len(),
+            "CFB storage DID {} child out of range",
+            did
+        );
+        ensure!(
+            entries[node.child as usize].color == 1,
+            "CFB storage DID {} child root must be black",
+            did
+        );
         validate_rb_subtree(entries, node.child, None, None, false, visited)?;
     }
 
@@ -340,9 +484,17 @@ fn verify_cfb_dir_rb_tree(cfb: &[u8]) -> Result<()> {
     let mut sec = first_dir;
     let mut seen_secs = std::collections::BTreeSet::new();
     while sec != 0xFFFF_FFFE && sec != NOSTREAM {
-        ensure!(seen_secs.insert(sec), "CFB directory sector cycle at {}", sec);
+        ensure!(
+            seen_secs.insert(sec),
+            "CFB directory sector cycle at {}",
+            sec
+        );
         let off = (sec as usize + 1) * 512;
-        ensure!(off + 512 <= cfb.len(), "CFB dir sector {} out of bounds", sec);
+        ensure!(
+            off + 512 <= cfb.len(),
+            "CFB dir sector {} out of bounds",
+            sec
+        );
         for slot in 0..4 {
             let e = &cfb[off + slot * 128..off + (slot + 1) * 128];
             let cb_name = read_u16_le(e, 0x40)? as usize;
@@ -363,17 +515,30 @@ fn verify_cfb_dir_rb_tree(cfb: &[u8]) -> Result<()> {
                     }
                 }
             }
-            entries.push(CfbDirEntry { name_upper, obj_type, color, left, right, child });
+            entries.push(CfbDirEntry {
+                name_upper,
+                obj_type,
+                color,
+                left,
+                right,
+                child,
+            });
         }
         sec = read_u32_le(cfb, fat_off + (sec as usize) * 4)?;
     }
 
-    ensure!(!entries.is_empty() && entries[0].obj_type == 5, "CFB missing Root Entry");
+    ensure!(
+        !entries.is_empty() && entries[0].obj_type == 5,
+        "CFB missing Root Entry"
+    );
     ensure!(entries[0].color == 1, "CFB Root Entry must be black");
     let mut visited = std::collections::BTreeSet::new();
     visited.insert(0);
     if entries[0].child != NOSTREAM {
-        ensure!(entries[entries[0].child as usize].color == 1, "CFB root child must be black");
+        ensure!(
+            entries[entries[0].child as usize].color == 1,
+            "CFB root child must be black"
+        );
         validate_rb_subtree(&entries, entries[0].child, None, None, false, &mut visited)?;
     }
     let expected_used = entries.iter().filter(|e| e.obj_type != 0).count();

@@ -1,9 +1,9 @@
-use std::path::Path;
-use anyhow::{ensure, Result};
 use crate::util::{
-    crc32_ieee, read_u16_le, read_u32_le, utf16le_nul, write_file_deterministic, FIXED_FILETIME,
-    FIXED_UNIX_SECS,
+    FIXED_FILETIME, FIXED_UNIX_SECS, crc32_ieee, read_u16_le, read_u32_le, utf16le_nul,
+    write_file_deterministic,
 };
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 fn build_minimal_16x16_png() -> Vec<u8> {
     let mut png = Vec::from(&b"\x89PNG\r\n\x1a\n"[..]);
@@ -51,7 +51,11 @@ fn build_minimal_16x16_png() -> Vec<u8> {
 fn ver_node(key: &str, value: &[u8], w_type: u16, children: &[Vec<u8>]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&0u16.to_le_bytes()); // wLength placeholder
-    let w_val_len = if w_type == 0 { value.len() } else { value.len() / 2 };
+    let w_val_len = if w_type == 0 {
+        value.len()
+    } else {
+        value.len() / 2
+    };
     out.extend_from_slice(&(w_val_len as u16).to_le_bytes());
     out.extend_from_slice(&w_type.to_le_bytes());
     out.extend_from_slice(&utf16le_nul(key));
@@ -194,16 +198,35 @@ pub fn build_sample_pe32_dll() -> Vec<u8> {
         ],
     );
     for i in 0..3 {
-        write_rsrc_dir(&mut rsrc, l2_offs[i], &[(1, 0x8000_0000 | l3_offs[i] as u32)]);
+        write_rsrc_dir(
+            &mut rsrc,
+            l2_offs[i],
+            &[(1, 0x8000_0000 | l3_offs[i] as u32)],
+        );
         write_rsrc_dir(&mut rsrc, l3_offs[i], &[(0x0409, de_offs[i] as u32)]);
     }
     let write_de = |buf: &mut [u8], off: usize, rva: u32, sz: usize| {
         buf[off..off + 4].copy_from_slice(&rva.to_le_bytes());
         buf[off + 4..off + 8].copy_from_slice(&(sz as u32).to_le_bytes());
     };
-    write_de(&mut rsrc, de_offs[0], 0x3000 + pay1_off as u32, icon_png.len());
-    write_de(&mut rsrc, de_offs[1], 0x3000 + pay2_off as u32, grp_icon.len());
-    write_de(&mut rsrc, de_offs[2], 0x3000 + pay3_off as u32, ver_info.len());
+    write_de(
+        &mut rsrc,
+        de_offs[0],
+        0x3000 + pay1_off as u32,
+        icon_png.len(),
+    );
+    write_de(
+        &mut rsrc,
+        de_offs[1],
+        0x3000 + pay2_off as u32,
+        grp_icon.len(),
+    );
+    write_de(
+        &mut rsrc,
+        de_offs[2],
+        0x3000 + pay3_off as u32,
+        ver_info.len(),
+    );
     rsrc[pay1_off..pay1_off + icon_png.len()].copy_from_slice(&icon_png);
     rsrc[pay2_off..pay2_off + grp_icon.len()].copy_from_slice(&grp_icon);
     rsrc[pay3_off..pay3_off + ver_info.len()].copy_from_slice(&ver_info);
@@ -240,9 +263,36 @@ pub fn build_sample_pe32_dll() -> Vec<u8> {
     hdr[0x108..0x10C].copy_from_slice(&0x3000u32.to_le_bytes());
     hdr[0x10C..0x110].copy_from_slice(&(rsrc_raw_len as u32).to_le_bytes());
 
-    push_section_hdr(&mut hdr, 0x178, b".text\0\0\0", 0x10, 0x1000, 0x200, 0x200, 0x6000_0020);
-    push_section_hdr(&mut hdr, 0x1A0, b".rdata\0\0", export_dir_sz, 0x2000, 0x200, 0x400, 0x4000_0040);
-    push_section_hdr(&mut hdr, 0x1C8, b".rsrc\0\0\0", rsrc_raw_len as u32, 0x3000, rsrc_aligned as u32, 0x600, 0x4000_0040);
+    push_section_hdr(
+        &mut hdr,
+        0x178,
+        b".text\0\0\0",
+        0x10,
+        0x1000,
+        0x200,
+        0x200,
+        0x6000_0020,
+    );
+    push_section_hdr(
+        &mut hdr,
+        0x1A0,
+        b".rdata\0\0",
+        export_dir_sz,
+        0x2000,
+        0x200,
+        0x400,
+        0x4000_0040,
+    );
+    push_section_hdr(
+        &mut hdr,
+        0x1C8,
+        b".rsrc\0\0\0",
+        rsrc_raw_len as u32,
+        0x3000,
+        rsrc_aligned as u32,
+        0x600,
+        0x4000_0040,
+    );
 
     let mut text = vec![0u8; 0x200];
     text[0] = 0xC3; // ret
@@ -257,11 +307,16 @@ pub fn build_sample_pe32_dll() -> Vec<u8> {
 }
 
 pub fn build_sample_pe64_dotnet_exe() -> Vec<u8> {
-    let mut strings_heap = Vec::from(&b"\0GuapDotNetFixture.exe\0GuapDotNetFixture\0GuapDotNetFixture.embedded.txt\0"[..]);
+    let mut strings_heap = Vec::from(
+        &b"\0GuapDotNetFixture.exe\0GuapDotNetFixture\0GuapDotNetFixture.embedded.txt\0"[..],
+    );
     while strings_heap.len() % 4 != 0 {
         strings_heap.push(0);
     }
-    let guid_heap = [0x11u8, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01];
+    let guid_heap = [
+        0x11u8, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+        0x01,
+    ];
     let blob_heap = [0u8; 4];
 
     // #~ stream
@@ -326,7 +381,12 @@ pub fn build_sample_pe64_dotnet_exe() -> Vec<u8> {
         dst.extend_from_slice(name);
     };
     push_shdr(&mut bsjb, off_tilde, tilde.len(), b"#~\0\0");
-    push_shdr(&mut bsjb, off_strings, strings_heap.len(), b"#Strings\0\0\0\0");
+    push_shdr(
+        &mut bsjb,
+        off_strings,
+        strings_heap.len(),
+        b"#Strings\0\0\0\0",
+    );
     push_shdr(&mut bsjb, off_guid, guid_heap.len(), b"#GUID\0\0\0");
     push_shdr(&mut bsjb, off_blob, blob_heap.len(), b"#Blob\0\0\0");
     bsjb.extend_from_slice(&tilde);
@@ -382,7 +442,16 @@ pub fn build_sample_pe64_dotnet_exe() -> Vec<u8> {
     // DataDir[14] CLR at 0x98 + 0x70 + 14*8 = 0x178
     hdr[0x178..0x17C].copy_from_slice(&0x1010u32.to_le_bytes());
     hdr[0x17C..0x180].copy_from_slice(&72u32.to_le_bytes());
-    push_section_hdr(&mut hdr, 0x188, b".text\0\0\0", 0x400, 0x1000, 0x400, 0x200, 0x6000_0020);
+    push_section_hdr(
+        &mut hdr,
+        0x188,
+        b".text\0\0\0",
+        0x400,
+        0x1000,
+        0x400,
+        0x200,
+        0x6000_0020,
+    );
 
     let mut out = Vec::with_capacity(0x600);
     out.extend_from_slice(&hdr);
@@ -412,9 +481,27 @@ pub fn build_usnjrnl_j() -> Vec<u8> {
     };
 
     let mut out = Vec::new();
-    out.extend_from_slice(&make_rec(0x0001_0000_0000_0100, 0x0005_0000_0000_0005, 1024, 0x0000_0100, "audit.log"));
-    out.extend_from_slice(&make_rec(0x0001_0000_0000_0100, 0x0005_0000_0000_0005, 1104, 0x8000_0002, "audit.log"));
-    out.extend_from_slice(&make_rec(0x0001_0000_0000_0101, 0x0005_0000_0000_0005, 1184, 0x8000_0200, "temp_report.tmp"));
+    out.extend_from_slice(&make_rec(
+        0x0001_0000_0000_0100,
+        0x0005_0000_0000_0005,
+        1024,
+        0x0000_0100,
+        "audit.log",
+    ));
+    out.extend_from_slice(&make_rec(
+        0x0001_0000_0000_0100,
+        0x0005_0000_0000_0005,
+        1104,
+        0x8000_0002,
+        "audit.log",
+    ));
+    out.extend_from_slice(&make_rec(
+        0x0001_0000_0000_0101,
+        0x0005_0000_0000_0005,
+        1184,
+        0x8000_0200,
+        "temp_report.tmp",
+    ));
     out
 }
 
@@ -446,7 +533,14 @@ pub fn build_ata_smart() -> Vec<u8> {
 pub fn build_ata_smart_thresholds() -> Vec<u8> {
     let mut b = vec![0u8; 512];
     b[0..2].copy_from_slice(&0x0010u16.to_le_bytes());
-    let threshes: [(u8, u8); 6] = [(0x01, 6), (0x05, 10), (0x09, 0), (0x0C, 0), (0xC2, 0), (0xC5, 0)];
+    let threshes: [(u8, u8); 6] = [
+        (0x01, 6),
+        (0x05, 10),
+        (0x09, 0),
+        (0x0C, 0),
+        (0xC2, 0),
+        (0xC5, 0),
+    ];
     for (idx, &(id, th)) in threshes.iter().enumerate() {
         let off = 2 + idx * 12;
         b[off] = id;
@@ -460,11 +554,20 @@ pub fn build_ata_smart_thresholds() -> Vec<u8> {
 pub fn generate_sys_fs_dir(sys_fs_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(sys_fs_dir)?;
 
-    write_file_deterministic(&sys_fs_dir.join("sample_pe32.dll"), &build_sample_pe32_dll())?;
-    write_file_deterministic(&sys_fs_dir.join("sample_pe64_dotnet.exe"), &build_sample_pe64_dotnet_exe())?;
+    write_file_deterministic(
+        &sys_fs_dir.join("sample_pe32.dll"),
+        &build_sample_pe32_dll(),
+    )?;
+    write_file_deterministic(
+        &sys_fs_dir.join("sample_pe64_dotnet.exe"),
+        &build_sample_pe64_dotnet_exe(),
+    )?;
     write_file_deterministic(&sys_fs_dir.join("usnjrnl_j.bin"), &build_usnjrnl_j())?;
     write_file_deterministic(&sys_fs_dir.join("ata_smart.bin"), &build_ata_smart())?;
-    write_file_deterministic(&sys_fs_dir.join("ata_smart_thresholds.bin"), &build_ata_smart_thresholds())?;
+    write_file_deterministic(
+        &sys_fs_dir.join("ata_smart_thresholds.bin"),
+        &build_ata_smart_thresholds(),
+    )?;
 
     let csv_left = "\
 id,name,formula_test,bytes,status
@@ -486,7 +589,10 @@ id,name,formula_test,bytes,status
 5,epsilon_sum,\"@SUM(1,2)\",128,ok
 7,new_row,added,4096,ok
 ";
-    write_file_deterministic(&sys_fs_dir.join("sample_data_right.csv"), csv_right.as_bytes())?;
+    write_file_deterministic(
+        &sys_fs_dir.join("sample_data_right.csv"),
+        csv_right.as_bytes(),
+    )?;
 
     let tsv = "\
 id\tname\tformula_test\tbytes\tstatus
@@ -537,24 +643,54 @@ pub fn verify_sys_fs_dir(sys_fs_dir: &Path) -> Result<(usize, Vec<String>)> {
     let pe32 = std::fs::read(sys_fs_dir.join("sample_pe32.dll"))?;
     ensure!(&pe32[0..2] == b"MZ", "pe32 bad MZ");
     let lfanew32 = read_u32_le(&pe32, 0x3C)? as usize;
-    ensure!(&pe32[lfanew32..lfanew32 + 4] == b"PE\0\0", "pe32 bad PE sig");
-    ensure!(read_u16_le(&pe32, lfanew32 + 24)? == 0x010B, "pe32 bad optional magic");
-    ensure!(read_u32_le(&pe32, 0x400 + 0x18)? == 3, "pe32 NumberOfNames != 3");
+    ensure!(
+        &pe32[lfanew32..lfanew32 + 4] == b"PE\0\0",
+        "pe32 bad PE sig"
+    );
+    ensure!(
+        read_u16_le(&pe32, lfanew32 + 24)? == 0x010B,
+        "pe32 bad optional magic"
+    );
+    ensure!(
+        read_u32_le(&pe32, 0x400 + 0x18)? == 3,
+        "pe32 NumberOfNames != 3"
+    );
     let pe32_str = String::from_utf8_lossy(&pe32);
-    ensure!(pe32_str.contains("GuapComputeHash") && pe32_str.contains("KERNEL32.GetTickCount"), "pe32 missing exports");
-    ensure!(pe32.windows(4).any(|w| w == 0xFEEF_04BDu32.to_le_bytes()), "pe32 missing VS_FIXEDFILEINFO");
+    ensure!(
+        pe32_str.contains("GuapComputeHash") && pe32_str.contains("KERNEL32.GetTickCount"),
+        "pe32 missing exports"
+    );
+    ensure!(
+        pe32.windows(4).any(|w| w == 0xFEEF_04BDu32.to_le_bytes()),
+        "pe32 missing VS_FIXEDFILEINFO"
+    );
     details.push("sys_fs/sample_pe32.dll: PE32 + 3 exports + 3-level .rsrc verified".into());
 
     // 2. PE32+ .NET EXE
     let pe64 = std::fs::read(sys_fs_dir.join("sample_pe64_dotnet.exe"))?;
     ensure!(&pe64[0..2] == b"MZ", "pe64 bad MZ");
     let lfanew64 = read_u32_le(&pe64, 0x3C)? as usize;
-    ensure!(&pe64[lfanew64..lfanew64 + 4] == b"PE\0\0", "pe64 bad PE sig");
-    ensure!(read_u16_le(&pe64, lfanew64 + 24)? == 0x020B, "pe64 bad optional magic");
-    ensure!(read_u32_le(&pe64, 0x210)? == 72, "pe64 IMAGE_COR20_HEADER cb != 72");
-    ensure!(read_u32_le(&pe64, 0x260)? == 0x424A_5342, "pe64 missing BSJB");
+    ensure!(
+        &pe64[lfanew64..lfanew64 + 4] == b"PE\0\0",
+        "pe64 bad PE sig"
+    );
+    ensure!(
+        read_u16_le(&pe64, lfanew64 + 24)? == 0x020B,
+        "pe64 bad optional magic"
+    );
+    ensure!(
+        read_u32_le(&pe64, 0x210)? == 72,
+        "pe64 IMAGE_COR20_HEADER cb != 72"
+    );
+    ensure!(
+        read_u32_le(&pe64, 0x260)? == 0x424A_5342,
+        "pe64 missing BSJB"
+    );
     let pe64_str = String::from_utf8_lossy(&pe64);
-    ensure!(pe64_str.contains("GuapDotNetFixture.embedded.txt"), "pe64 missing ManifestResource");
+    ensure!(
+        pe64_str.contains("GuapDotNetFixture.embedded.txt"),
+        "pe64 missing ManifestResource"
+    );
     details.push("sys_fs/sample_pe64_dotnet.exe: PE32+ + CLR + BSJB + #~ verified".into());
 
     // 3. USN Journal
@@ -563,7 +699,10 @@ pub fn verify_sys_fs_dir(sys_fs_dir: &Path) -> Result<(usize, Vec<String>)> {
     let mut usn_recs = 0usize;
     while off < usn.len() {
         let rlen = read_u32_le(&usn, off)? as usize;
-        ensure!(rlen >= 60 && rlen.is_multiple_of(8) && off + rlen <= usn.len(), "bad USN record len");
+        ensure!(
+            rlen >= 60 && rlen.is_multiple_of(8) && off + rlen <= usn.len(),
+            "bad USN record len"
+        );
         ensure!(read_u16_le(&usn, off + 4)? == 2, "USN MajorVersion != 2");
         off += rlen;
         usn_recs += 1;
@@ -612,28 +751,66 @@ pub fn verify_sys_fs_dir(sys_fs_dir: &Path) -> Result<(usize, Vec<String>)> {
     };
 
     let csv_l = std::fs::read_to_string(sys_fs_dir.join("sample_data.csv"))?;
-    ensure!(csv_l.contains("=cmd|") && csv_l.contains("\"@SUM(1,2)\""), "sample_data.csv missing formula vectors");
+    ensure!(
+        csv_l.contains("=cmd|") && csv_l.contains("\"@SUM(1,2)\""),
+        "sample_data.csv missing formula vectors"
+    );
     let rows_l: Vec<Vec<String>> = csv_l.lines().map(parse_csv_row).collect::<Result<_>>()?;
-    ensure!(rows_l.len() == 7, "sample_data.csv expected 7 rows, got {}", rows_l.len());
+    ensure!(
+        rows_l.len() == 7,
+        "sample_data.csv expected 7 rows, got {}",
+        rows_l.len()
+    );
     for (idx, r) in rows_l.iter().enumerate() {
-        ensure!(r.len() == 5, "sample_data.csv row {} has {} cols != 5", idx + 1, r.len());
+        ensure!(
+            r.len() == 5,
+            "sample_data.csv row {} has {} cols != 5",
+            idx + 1,
+            r.len()
+        );
     }
-    ensure!(rows_l[5][2] == "@SUM(1,2)", "sample_data.csv row 6 col 3 mismatch: {}", rows_l[5][2]);
+    ensure!(
+        rows_l[5][2] == "@SUM(1,2)",
+        "sample_data.csv row 6 col 3 mismatch: {}",
+        rows_l[5][2]
+    );
 
     let csv_r = std::fs::read_to_string(sys_fs_dir.join("sample_data_right.csv"))?;
-    ensure!(csv_r.contains("7,new_row") && csv_r.contains("\"@SUM(1,2)\""), "sample_data_right.csv missing diff/formula row");
+    ensure!(
+        csv_r.contains("7,new_row") && csv_r.contains("\"@SUM(1,2)\""),
+        "sample_data_right.csv missing diff/formula row"
+    );
     let rows_r: Vec<Vec<String>> = csv_r.lines().map(parse_csv_row).collect::<Result<_>>()?;
-    ensure!(rows_r.len() == 7, "sample_data_right.csv expected 7 rows, got {}", rows_r.len());
+    ensure!(
+        rows_r.len() == 7,
+        "sample_data_right.csv expected 7 rows, got {}",
+        rows_r.len()
+    );
     for (idx, r) in rows_r.iter().enumerate() {
-        ensure!(r.len() == 5, "sample_data_right.csv row {} has {} cols != 5", idx + 1, r.len());
+        ensure!(
+            r.len() == 5,
+            "sample_data_right.csv row {} has {} cols != 5",
+            idx + 1,
+            r.len()
+        );
     }
-    ensure!(rows_r[5][2] == "@SUM(1,2)", "sample_data_right.csv row 6 col 3 mismatch: {}", rows_r[5][2]);
+    ensure!(
+        rows_r[5][2] == "@SUM(1,2)",
+        "sample_data_right.csv row 6 col 3 mismatch: {}",
+        rows_r[5][2]
+    );
     let tsv = std::fs::read_to_string(sys_fs_dir.join("sample_data.tsv"))?;
     ensure!(tsv.contains('\t'), "sample_data.tsv missing tabs");
     let html = std::fs::read_to_string(sys_fs_dir.join("sample_page.html"))?;
-    ensure!(html.contains("<title>GUAP HTML Fixture</title>"), "sample_page.html invalid");
+    ensure!(
+        html.contains("<title>GUAP HTML Fixture</title>"),
+        "sample_page.html invalid"
+    );
     let vcf = std::fs::read_to_string(sys_fs_dir.join("sample_contacts.vcf"))?;
-    ensure!(vcf.contains("BEGIN:VCARD") && vcf.contains("\r\n Windows DFIR"), "sample_contacts.vcf invalid");
+    ensure!(
+        vcf.contains("BEGIN:VCARD") && vcf.contains("\r\n Windows DFIR"),
+        "sample_contacts.vcf invalid"
+    );
     let jsonl = std::fs::read_to_string(sys_fs_dir.join("sample_records.jsonl"))?;
     for line in jsonl.lines() {
         let _: serde_json::Value = serde_json::from_str(line)?;

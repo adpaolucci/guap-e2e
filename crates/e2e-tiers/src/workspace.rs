@@ -55,7 +55,10 @@ pub fn truncate_preview(s: &str, max_chars: usize) -> String {
     }
 }
 
-pub fn run_command_with_timeout(cmd: &mut Command, timeout: Duration) -> anyhow::Result<CommandOutput> {
+pub fn run_command_with_timeout(
+    cmd: &mut Command,
+    timeout: Duration,
+) -> anyhow::Result<CommandOutput> {
     let start = Instant::now();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -169,8 +172,14 @@ impl WorkspaceSession {
         let ws_dir = self.workspace_dir(ws);
         let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
         let candidates = [
-            ws_dir.join("target").join("debug").join(format!("{bin_name}{exe_suffix}")),
-            ws_dir.join("target").join("release").join(format!("{bin_name}{exe_suffix}")),
+            ws_dir
+                .join("target")
+                .join("debug")
+                .join(format!("{bin_name}{exe_suffix}")),
+            ws_dir
+                .join("target")
+                .join("release")
+                .join(format!("{bin_name}{exe_suffix}")),
         ];
 
         let mut best: Option<(SystemTime, PathBuf)> = None;
@@ -204,41 +213,47 @@ impl WorkspaceSession {
                 }
             } else {
                 let ws_dir = self.workspace_dir(ws);
-            let Some(bin_name) = ws.binary_name() else {
-                self.binary_cache.insert(ws, None);
-                return Ok(None);
-            };
-            let cli_pkg = format!("{bin_name}-cli");
-            let build_res = if ws_dir.join("crates").join(&cli_pkg).join("Cargo.toml").is_file() {
-                let mut cmd = Command::new("cargo");
-                cmd.current_dir(&ws_dir)
-                    .args(["build", "--offline", "-p", &cli_pkg]);
-                let out = run_command_with_timeout(&mut cmd, CARGO_TIMEOUT);
-                match out {
-                    Ok(o) if o.success() => Ok(()),
-                    Ok(o) => Err(format!(
-                        "cargo build --offline -p {cli_pkg} failed in {}: {}",
-                        ws_dir.display(),
-                        truncate_preview(&o.stderr, 400)
-                    )),
-                    Err(e) => Err(e.to_string()),
-                }
-            } else if self.find_existing_binary(ws).is_some() {
-                Ok(())
-            } else {
-                let mut fb = Command::new("cargo");
-                fb.current_dir(&ws_dir).args(["build", "--offline", "--workspace"]);
-                let fb_out = run_command_with_timeout(&mut fb, CARGO_TIMEOUT)?;
-                if fb_out.success() {
+                let Some(bin_name) = ws.binary_name() else {
+                    self.binary_cache.insert(ws, None);
+                    return Ok(None);
+                };
+                let cli_pkg = format!("{bin_name}-cli");
+                let build_res = if ws_dir
+                    .join("crates")
+                    .join(&cli_pkg)
+                    .join("Cargo.toml")
+                    .is_file()
+                {
+                    let mut cmd = Command::new("cargo");
+                    cmd.current_dir(&ws_dir)
+                        .args(["build", "--offline", "-p", &cli_pkg]);
+                    let out = run_command_with_timeout(&mut cmd, CARGO_TIMEOUT);
+                    match out {
+                        Ok(o) if o.success() => Ok(()),
+                        Ok(o) => Err(format!(
+                            "cargo build --offline -p {cli_pkg} failed in {}: {}",
+                            ws_dir.display(),
+                            truncate_preview(&o.stderr, 400)
+                        )),
+                        Err(e) => Err(e.to_string()),
+                    }
+                } else if self.find_existing_binary(ws).is_some() {
                     Ok(())
                 } else {
-                    Err(format!(
-                        "cargo build --offline failed in {}: {}",
-                        ws_dir.display(),
-                        truncate_preview(&fb_out.stderr, 400)
-                    ))
-                }
-            };
+                    let mut fb = Command::new("cargo");
+                    fb.current_dir(&ws_dir)
+                        .args(["build", "--offline", "--workspace"]);
+                    let fb_out = run_command_with_timeout(&mut fb, CARGO_TIMEOUT)?;
+                    if fb_out.success() {
+                        Ok(())
+                    } else {
+                        Err(format!(
+                            "cargo build --offline failed in {}: {}",
+                            ws_dir.display(),
+                            truncate_preview(&fb_out.stderr, 400)
+                        ))
+                    }
+                };
                 self.cargo_build_attempted.insert(ws, build_res.clone());
                 if let Err(err) = build_res {
                     bail!("{err}");
@@ -257,7 +272,11 @@ impl WorkspaceSession {
         Ok(resolved)
     }
 
-    pub fn run_cli(&mut self, ws: TargetWorkspace, args: &[&str]) -> anyhow::Result<Option<CommandOutput>> {
+    pub fn run_cli(
+        &mut self,
+        ws: TargetWorkspace,
+        args: &[&str],
+    ) -> anyhow::Result<Option<CommandOutput>> {
         self.run_cli_with_env(ws, args, &[])
     }
 
@@ -280,7 +299,11 @@ impl WorkspaceSession {
         Ok(Some(out))
     }
 
-    pub fn run_cli_raw(&mut self, ws: TargetWorkspace, args: &[&str]) -> anyhow::Result<Option<CommandOutput>> {
+    pub fn run_cli_raw(
+        &mut self,
+        ws: TargetWorkspace,
+        args: &[&str],
+    ) -> anyhow::Result<Option<CommandOutput>> {
         let Some(bin) = self.resolve_binary(ws)? else {
             return Ok(None);
         };
@@ -350,7 +373,10 @@ impl WorkspaceSession {
         Ok(Some(out.stdout))
     }
 
-    pub fn cached_mcp_tools(&mut self, ws: TargetWorkspace) -> anyhow::Result<Option<Vec<serde_json::Value>>> {
+    pub fn cached_mcp_tools(
+        &mut self,
+        ws: TargetWorkspace,
+    ) -> anyhow::Result<Option<Vec<serde_json::Value>>> {
         if let Some(cached) = self.tools_cache.get(&ws) {
             return match cached {
                 Ok(v) => Ok(Some(v.clone())),
@@ -370,13 +396,14 @@ impl WorkspaceSession {
             self.tools_cache.insert(ws, Err(msg.clone()));
             bail!("{msg}");
         }
-        let parsed: serde_json::Value = serde_json::from_str(out.stdout.trim()).with_context(|| {
-            format!(
-                "{} mcp --tools did not emit valid JSON: {}",
-                ws.dir_name(),
-                truncate_preview(&out.stdout, 300)
-            )
-        })?;
+        let parsed: serde_json::Value =
+            serde_json::from_str(out.stdout.trim()).with_context(|| {
+                format!(
+                    "{} mcp --tools did not emit valid JSON: {}",
+                    ws.dir_name(),
+                    truncate_preview(&out.stdout, 300)
+                )
+            })?;
         let arr = parsed
             .as_array()
             .cloned()
@@ -395,7 +422,10 @@ impl WorkspaceSession {
         let mut cmd = Command::new("cargo");
         cmd.current_dir(dir).args(args);
         let out = run_command_with_timeout(&mut cmd, CARGO_TIMEOUT)?;
-        assert_no_panic(&format!("cargo {} in {}", args.join(" "), dir.display()), &out)?;
+        assert_no_panic(
+            &format!("cargo {} in {}", args.join(" "), dir.display()),
+            &out,
+        )?;
         Ok(out)
     }
 

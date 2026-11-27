@@ -122,13 +122,21 @@ pub fn verify_custody_manifest(
             leaf.index
         );
         ensure!(
-            leaf.sha256.len() == 64 && leaf.sha256.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')),
+            leaf.sha256.len() == 64
+                && leaf
+                    .sha256
+                    .bytes()
+                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')),
             "leaf {} sha256 is not 64-char lowercase hex: {:?}",
             leaf.index,
             leaf.sha256
         );
         ensure!(
-            leaf.sha512.len() == 128 && leaf.sha512.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')),
+            leaf.sha512.len() == 128
+                && leaf
+                    .sha512
+                    .bytes()
+                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')),
             "leaf {} sha512 is not 128-char lowercase hex: {:?}",
             leaf.index,
             leaf.sha512
@@ -249,7 +257,10 @@ pub fn parse_rfc4180_csv(bytes: &[u8]) -> anyhow::Result<Vec<Vec<String>>> {
                     continue;
                 }
                 other => {
-                    bail!("unexpected character {:?} after closing quote in CSV", other);
+                    bail!(
+                        "unexpected character {:?} after closing quote in CSV",
+                        other
+                    );
                 }
             }
         }
@@ -371,7 +382,10 @@ pub fn verify_csv_formula_neutralization_min_rows(
     Ok(total_rows)
 }
 
-pub fn verify_tsv_bytes(tsv_bytes: &[u8], required_dangerous_raws: &[&str]) -> anyhow::Result<usize> {
+pub fn verify_tsv_bytes(
+    tsv_bytes: &[u8],
+    required_dangerous_raws: &[&str],
+) -> anyhow::Result<usize> {
     let text = std::str::from_utf8(tsv_bytes).context("TSV export is not valid UTF-8")?;
     let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
     let lines: Vec<&str> = text.lines().collect();
@@ -440,7 +454,11 @@ pub fn verify_jsonl_bytes(jsonl_bytes: &[u8]) -> anyhow::Result<usize> {
         }
         let val: serde_json::Value = serde_json::from_str(trimmed)
             .with_context(|| format!("JSONL line {} is invalid JSON", idx + 1))?;
-        ensure!(val.is_object(), "JSONL line {} is not a JSON object", idx + 1);
+        ensure!(
+            val.is_object(),
+            "JSONL line {} is not a JSON object",
+            idx + 1
+        );
         count += 1;
     }
     ensure!(count > 0, "JSONL export has zero records");
@@ -499,8 +517,8 @@ pub fn build_sample_custody_manifest(
     let mut leaves = Vec::with_capacity(artifact_paths.len());
     let mut total_bytes = 0u64;
     for (idx, p) in artifact_paths.iter().enumerate() {
-        let bytes = std::fs::read(p)
-            .with_context(|| format!("failed reading artifact {}", p.display()))?;
+        let bytes =
+            std::fs::read(p).with_context(|| format!("failed reading artifact {}", p.display()))?;
         total_bytes += bytes.len() as u64;
         leaves.push(CustodyLeafView {
             index: idx,

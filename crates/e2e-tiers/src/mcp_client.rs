@@ -24,7 +24,11 @@ pub struct McpSession {
 }
 
 impl McpSession {
-    pub fn spawn(bin_path: &Path, args: &[&str], env_overrides: &[(&str, &str)]) -> anyhow::Result<Self> {
+    pub fn spawn(
+        bin_path: &Path,
+        args: &[&str],
+        env_overrides: &[(&str, &str)],
+    ) -> anyhow::Result<Self> {
         let mut cmd = Command::new(bin_path);
         cmd.args(args)
             .stdin(Stdio::piped())
@@ -88,7 +92,10 @@ impl McpSession {
         loop {
             let remaining = timeout.saturating_sub(start.elapsed());
             if remaining.is_zero() {
-                bail!("timed out waiting for MCP JSON-RPC response after {:?}", timeout);
+                bail!(
+                    "timed out waiting for MCP JSON-RPC response after {:?}",
+                    timeout
+                );
             }
             let raw = match self.stdout_rx.recv_timeout(remaining) {
                 Ok(Ok(line)) => line,
@@ -189,7 +196,10 @@ impl McpSession {
             MCP_PROTOCOL_VERSION
         );
         ensure!(
-            result.get("capabilities").and_then(|c| c.get("tools")).is_some(),
+            result
+                .get("capabilities")
+                .and_then(|c| c.get("tools"))
+                .is_some(),
             "MCP initialize missing result.capabilities.tools: {}",
             result
         );
@@ -364,14 +374,13 @@ pub fn assert_policy_denied(
             .and_then(Value::as_bool)
             == Some(true)
     {
-        let txt = resp["result"]["content"][0]["text"]
-            .as_str()
-            .unwrap_or("");
-        if txt.contains("SAFETY REFUSAL") || txt.contains("confirm_destructive") || txt.contains("policy") {
+        let txt = resp["result"]["content"][0]["text"].as_str().unwrap_or("");
+        if txt.contains("SAFETY REFUSAL")
+            || txt.contains("confirm_destructive")
+            || txt.contains("policy")
+        {
             return Ok(());
         }
     }
-    bail!(
-        "POLICY GATE FAILURE: mutating tool '{tool_name}' was NOT rejected with -32003: {resp}"
-    );
+    bail!("POLICY GATE FAILURE: mutating tool '{tool_name}' was NOT rejected with -32003: {resp}");
 }

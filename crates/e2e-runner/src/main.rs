@@ -4,7 +4,9 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use e2e_fixtures::{FixtureVerificationReport, MaterializedFixtures, materialize_all, verify_fixture_integrity};
+use e2e_fixtures::{
+    FixtureVerificationReport, MaterializedFixtures, materialize_all, verify_fixture_integrity,
+};
 use e2e_r4::{R4Report, R4ScanConfig, run_r4_scan};
 use e2e_tiers::{TargetWorkspace, Tier, TierReport, TierRunConfig, catalog, run_tiers};
 use serde::Serialize;
@@ -14,7 +16,11 @@ fn default_guap_root() -> PathBuf {
     if let Some(root) = std::env::var_os("GUAP_ROOT") {
         return PathBuf::from(root);
     }
-    if Path::new("..").join("guap-kit").join("Cargo.toml").is_file() {
+    if Path::new("..")
+        .join("guap-kit")
+        .join("Cargo.toml")
+        .is_file()
+    {
         return PathBuf::from("..");
     }
     let manifest_parent = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -135,7 +141,13 @@ fn resolve_plan(args: CliArgs) -> Result<ResolvedPlan> {
     })
 }
 
-fn prepare_fixtures(fixtures_dir: Option<&Path>) -> Result<(Option<TempDir>, MaterializedFixtures, FixtureVerificationReport)> {
+fn prepare_fixtures(
+    fixtures_dir: Option<&Path>,
+) -> Result<(
+    Option<TempDir>,
+    MaterializedFixtures,
+    FixtureVerificationReport,
+)> {
     let (temp_guard, root_dir) = if let Some(dir) = fixtures_dir {
         (None, dir.to_path_buf())
     } else {
@@ -144,10 +156,14 @@ fn prepare_fixtures(fixtures_dir: Option<&Path>) -> Result<(Option<TempDir>, Mat
         (Some(td), p)
     };
 
-    let fixtures = materialize_all(&root_dir)
-        .with_context(|| format!("materializing synthetic fixtures under {}", root_dir.display()))?;
-    let verification = verify_fixture_integrity(&fixtures)
-        .context("verifying materialized synthetic fixtures")?;
+    let fixtures = materialize_all(&root_dir).with_context(|| {
+        format!(
+            "materializing synthetic fixtures under {}",
+            root_dir.display()
+        )
+    })?;
+    let verification =
+        verify_fixture_integrity(&fixtures).context("verifying materialized synthetic fixtures")?;
     if !verification.all_verified() {
         bail!(
             "fixture integrity verification incomplete ({}/{})",
@@ -166,9 +182,8 @@ fn is_overall_passed(
     r4_report: Option<&R4Report>,
 ) -> bool {
     let fixtures_ok = fixture_verif.is_none_or(FixtureVerificationReport::all_verified);
-    let tiers_ok = tier_report.is_none_or(|tr| {
-        tr.all_passed() && (target != TargetWorkspace::All || tr.skipped == 0)
-    });
+    let tiers_ok = tier_report
+        .is_none_or(|tr| tr.all_passed() && (target != TargetWorkspace::All || tr.skipped == 0));
     let r4_ok = r4_report.is_none_or(|r4| r4.passed);
     fixtures_ok && tiers_ok && r4_ok
 }
@@ -244,11 +259,18 @@ fn format_human_summary(report: &UnifiedE2eReport) -> String {
 
 fn format_test_ready_markdown(report: &UnifiedE2eReport) -> String {
     let mut md = String::new();
-    let status = if report.overall_passed { "PASS (M6 GATE GREEN)" } else { "FAIL" };
+    let status = if report.overall_passed {
+        "PASS (M6 GATE GREEN)"
+    } else {
+        "FAIL"
+    };
     md.push_str("# TEST_READY — GUAP Rust Production Suites (Phases 0–4)\n\n");
     md.push_str(&format!("- **Status**: {status}\n"));
     md.push_str(&format!("- **Generated At**: `{}`\n", report.generated_at));
-    md.push_str(&format!("- **Target Workspace Filter**: `{}`\n", report.target));
+    md.push_str(&format!(
+        "- **Target Workspace Filter**: `{}`\n",
+        report.target
+    ));
     md.push_str(&format!("- **GUAP Root**: `{}`\n", report.guap_root));
     md.push_str(&format!(
         "- **Catalog Coverage Target**: `{}` feature groups, `{}` discrete items\n\n",
@@ -283,7 +305,10 @@ fn format_test_ready_markdown(report: &UnifiedE2eReport) -> String {
             let p = subset.iter().filter(|r| !r.skipped && r.passed).count();
             let f = subset.iter().filter(|r| !r.skipped && !r.passed).count();
             let s = subset.iter().filter(|r| r.skipped).count();
-            md.push_str(&format!("| {tier} | {} | {p} | {f} | {s} |\n", subset.len()));
+            md.push_str(&format!(
+                "| {tier} | {} | {p} | {f} | {s} |\n",
+                subset.len()
+            ));
         }
         md.push('\n');
 
@@ -310,8 +335,18 @@ fn format_test_ready_markdown(report: &UnifiedE2eReport) -> String {
 
     if let Some(r4) = &report.r4_report {
         md.push_str("## Automated R4 Exclusion & Prohibition Compliance\n\n");
-        md.push_str(&format!("- **Result**: `{}`\n", if r4.passed { "PASS (0 violations)" } else { "FAIL" }));
-        md.push_str(&format!("- **Files Scanned** (source + binaries): `{}`\n", r4.files_scanned));
+        md.push_str(&format!(
+            "- **Result**: `{}`\n",
+            if r4.passed {
+                "PASS (0 violations)"
+            } else {
+                "FAIL"
+            }
+        ));
+        md.push_str(&format!(
+            "- **Files Scanned** (source + binaries): `{}`\n",
+            r4.files_scanned
+        ));
         md.push_str(&format!("- **Crates Scanned**: `{}`\n", r4.crates_scanned));
         md.push_str(&format!("- **Violations**: `{}`\n", r4.violations.len()));
         if !r4.baseline_notes.is_empty() {
@@ -500,7 +535,12 @@ mod tests {
             message: "missing bin".into(),
             duration_ms: 1,
         }]);
-        assert!(!is_overall_passed(TargetWorkspace::All, None, Some(&skipped), None));
+        assert!(!is_overall_passed(
+            TargetWorkspace::All,
+            None,
+            Some(&skipped),
+            None
+        ));
 
         let passed = TierReport::from_results(vec![CheckResult {
             id: "T1-NET-01".into(),
@@ -524,7 +564,12 @@ mod tests {
             generated_at: "2026-11-26T00:00:00Z".into(),
             guap_root: default_guap_root().display().to_string(),
             target: "all".into(),
-            overall_passed: is_overall_passed(TargetWorkspace::All, None, Some(&passed), Some(&r4_ok)),
+            overall_passed: is_overall_passed(
+                TargetWorkspace::All,
+                None,
+                Some(&passed),
+                Some(&r4_ok),
+            ),
             catalog_feature_groups: 31,
             catalog_items: 227,
             fixture_verification: None,

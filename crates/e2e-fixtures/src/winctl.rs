@@ -1,6 +1,6 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
 use crate::util::write_file_deterministic;
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 pub fn build_valid_edid_256() -> Vec<u8> {
     let mut b0 = [0u8; 128];
@@ -59,7 +59,10 @@ pub fn build_valid_edid_256() -> Vec<u8> {
 pub fn generate_winctl_dir(winctl_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(winctl_dir)?;
 
-    write_file_deterministic(&winctl_dir.join("monitor_edid.bin"), &build_valid_edid_256())?;
+    write_file_deterministic(
+        &winctl_dir.join("monitor_edid.bin"),
+        &build_valid_edid_256(),
+    )?;
 
     let ncl = "\
 ; GUAP winctl2rust-cmd Script DSL fixture (offline dry-run safe)
@@ -138,24 +141,49 @@ pub fn verify_winctl_dir(winctl_dir: &Path) -> Result<(usize, Vec<String>)> {
 
     let edid = std::fs::read(winctl_dir.join("monitor_edid.bin"))?;
     ensure!(edid.len() == 256, "bad EDID length {}", edid.len());
-    ensure!(edid[0..8] == [0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00], "bad EDID header");
-    ensure!(edid[18] == 1 && edid[19] == 4 && edid[126] == 1, "bad EDID 1.4 version/ext");
+    ensure!(
+        edid[0..8] == [0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00],
+        "bad EDID header"
+    );
+    ensure!(
+        edid[18] == 1 && edid[19] == 4 && edid[126] == 1,
+        "bad EDID 1.4 version/ext"
+    );
     let sum0: u32 = edid[0..128].iter().map(|&x| x as u32).sum();
     let sum1: u32 = edid[128..256].iter().map(|&x| x as u32).sum();
     ensure!(sum0.is_multiple_of(256), "EDID block 0 checksum failed");
-    ensure!(edid[128] == 0x02 && sum1.is_multiple_of(256), "CEA-861 block 1 checksum failed");
+    ensure!(
+        edid[128] == 0x02 && sum1.is_multiple_of(256),
+        "CEA-861 block 1 checksum failed"
+    );
     details.push("winctl/monitor_edid.bin: 256B EDID 1.4 + CEA-861 checksums verified".into());
 
     let ncl = std::fs::read_to_string(winctl_dir.join("cmd_script.gcl"))?;
-    ensure!(ncl.contains("mutesysvolume") && !ncl.contains("RunAsDate"), "bad cmd_script.gcl");
+    ensure!(
+        ncl.contains("mutesysvolume") && !ncl.contains("RunAsDate"),
+        "bad cmd_script.gcl"
+    );
     details.push("winctl/cmd_script.gcl: verified".into());
 
-    let adv: serde_json::Value = serde_json::from_slice(&std::fs::read(winctl_dir.join("advanced_run_profile.json"))?)?;
-    ensure!(adv["profiles"][0]["profile_name"] == "GuapOfflineToolCheck", "bad advanced_run_profile.json");
+    let adv: serde_json::Value = serde_json::from_slice(&std::fs::read(
+        winctl_dir.join("advanced_run_profile.json"),
+    )?)?;
+    ensure!(
+        adv["profiles"][0]["profile_name"] == "GuapOfflineToolCheck",
+        "bad advanced_run_profile.json"
+    );
     details.push("winctl/advanced_run_profile.json: verified".into());
 
-    let am: serde_json::Value = serde_json::from_slice(&std::fs::read(winctl_dir.join("audio_mccs_mock.json"))?)?;
-    ensure!(am["audio_endpoints"][0]["channels"] == 2 && am["mccs_monitors"][0]["vcp_features"].as_array().map(|a| a.len()) == Some(4), "bad audio_mccs_mock.json");
+    let am: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(winctl_dir.join("audio_mccs_mock.json"))?)?;
+    ensure!(
+        am["audio_endpoints"][0]["channels"] == 2
+            && am["mccs_monitors"][0]["vcp_features"]
+                .as_array()
+                .map(|a| a.len())
+                == Some(4),
+        "bad audio_mccs_mock.json"
+    );
     details.push("winctl/audio_mccs_mock.json: verified".into());
 
     Ok((4, details))

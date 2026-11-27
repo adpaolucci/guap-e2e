@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
+use regex::Regex;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
-use anyhow::{Context, Result};
-use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::R4Violation;
@@ -52,9 +52,7 @@ pub struct FsScanStats {
 }
 
 pub fn is_skipped_dir_name(name: &str) -> bool {
-    SKIP_DIRS
-        .iter()
-        .any(|skip| name.eq_ignore_ascii_case(skip))
+    SKIP_DIRS.iter().any(|skip| name.eq_ignore_ascii_case(skip))
 }
 
 fn should_visit(entry: &DirEntry) -> bool {
@@ -74,7 +72,9 @@ fn normalize_rel_path(root: &Path, path: &Path) -> String {
 }
 
 fn is_under_workspace(rel_norm: &str, workspace_name: &str) -> bool {
-    rel_norm.split('/').any(|seg| seg.eq_ignore_ascii_case(workspace_name))
+    rel_norm
+        .split('/')
+        .any(|seg| seg.eq_ignore_ascii_case(workspace_name))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -307,9 +307,17 @@ fn lex_rust_line(line: &str, state: &mut RustLexerState) -> Vec<Span> {
                     Some(i + 1 + ch.len_utf8() + 1)
                 } else if i + 3 < len && bytes[i + 1] == b'\\' && bytes[i + 3] == b'\'' {
                     Some(i + 4)
-                } else if i + 5 < len && bytes[i + 1] == b'\\' && bytes[i + 2] == b'x' && bytes[i + 5] == b'\'' {
+                } else if i + 5 < len
+                    && bytes[i + 1] == b'\\'
+                    && bytes[i + 2] == b'x'
+                    && bytes[i + 5] == b'\''
+                {
                     Some(i + 6)
-                } else if i + 5 < len && bytes[i + 1] == b'\\' && bytes[i + 2] == b'u' && bytes[i + 3] == b'{' {
+                } else if i + 5 < len
+                    && bytes[i + 1] == b'\\'
+                    && bytes[i + 2] == b'u'
+                    && bytes[i + 3] == b'{'
+                {
                     let mut j = i + 4;
                     while j < len && bytes[j] != b'}' {
                         j += 1;
@@ -398,7 +406,11 @@ struct PythonLexerState {
     triple_quote: Option<&'static str>,
 }
 
-fn lex_python_line(line: &str, state: &mut PythonLexerState, _registry: &RuleRegistry) -> Vec<(Span, bool)> {
+fn lex_python_line(
+    line: &str,
+    state: &mut PythonLexerState,
+    _registry: &RuleRegistry,
+) -> Vec<(Span, bool)> {
     let bytes = line.as_bytes();
     let len = bytes.len();
     let mut i = 0usize;
@@ -586,7 +598,6 @@ fn is_command_or_tool_id_line(line: &str, in_cmd_attr: bool) -> bool {
         || (trimmed.starts_with('"') && trimmed.contains("=>"))
 }
 
-
 fn span_for_byte(spans: &[Span], pos: usize) -> Option<&Span> {
     spans.iter().find(|sp| pos >= sp.start && pos < sp.end)
 }
@@ -692,8 +703,8 @@ pub fn scan_fs(guap_root: &Path, registry: &RuleRegistry) -> Result<FsScanStats>
 
         if file_name.eq_ignore_ascii_case("Cargo.toml") {
             files_scanned += 1;
-            let content = fs::read_to_string(path)
-                .with_context(|| format!("reading {}", path.display()))?;
+            let content =
+                fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
             scan_cargo_toml(
                 path,
                 &rel_norm,
@@ -762,7 +773,9 @@ pub fn scan_fs(guap_root: &Path, registry: &RuleRegistry) -> Result<FsScanStats>
                     path: crypto_path.clone(),
                     line: find_line_containing(&crypto_src, "EncryptionScheme::Dpapi"),
                     matched_symbol: "EncryptionScheme::Dpapi".to_string(),
-                    detail: "chrome2rust-core/src/crypto.rs must NOT decrypt EncryptionScheme::Dpapi".to_string(),
+                    detail:
+                        "chrome2rust-core/src/crypto.rs must NOT decrypt EncryptionScheme::Dpapi"
+                            .to_string(),
                 });
             }
             baseline_notes.push(format!(
@@ -1042,7 +1055,9 @@ fn scan_cargo_toml(
         };
         for (rule_idx, m_start, _, matched) in registry.scan_all_source_matches(line) {
             let rule = &registry.rules[rule_idx];
-            if rule.def.kind == RuleKind::LegacyAcm && registry.acm_audio_context_regex.is_match(line) {
+            if rule.def.kind == RuleKind::LegacyAcm
+                && registry.acm_audio_context_regex.is_match(line)
+            {
                 continue;
             }
             let in_comment = comment_part.is_some() && m_start >= code_part.len();
@@ -1053,7 +1068,10 @@ fn scan_cargo_toml(
             {
                 continue;
             }
-            if !in_comment && line.trim_start().starts_with("description") && registry.is_negated_text(line) {
+            if !in_comment
+                && line.trim_start().starts_with("description")
+                && registry.is_negated_text(line)
+            {
                 continue;
             }
             violations.push(R4Violation {
@@ -1404,7 +1422,9 @@ fn scan_rust_file(
 
     let file_has_audio_context = registry.acm_audio_context_regex.is_match(content);
     let file_has_wpm_struct_code = registry.wpm_struct_regex.is_match(&file_code_only);
-    let file_has_wpm_exec = registry.wpm_exec_or_inj_regex.is_match(&file_code_no_comments)
+    let file_has_wpm_exec = registry
+        .wpm_exec_or_inj_regex
+        .is_match(&file_code_no_comments)
         || has_virtual_alloc_ex_unsafe_protect(&lines, &line_spans);
     let file_has_wlan_get_profile = file_code_no_comments.contains("WlanGetProfile")
         || file_code_no_comments.contains("WLAN_PROFILE_GET_PLAINTEXT_KEY");
@@ -1416,7 +1436,8 @@ fn scan_rust_file(
             path: path.to_path_buf(),
             line: Some(line_no),
             matched_symbol: sym,
-            detail: "Wi-Fi plaintext key recovery (WLAN_PROFILE_GET_PLAINTEXT_KEY / keyMaterial)".to_string(),
+            detail: "Wi-Fi plaintext key recovery (WLAN_PROFILE_GET_PLAINTEXT_KEY / keyMaterial)"
+                .to_string(),
         });
     }
 
@@ -1490,7 +1511,9 @@ fn scan_rust_file(
                             let ident_start_line = {
                                 let b = line.as_bytes();
                                 let mut s = m_start;
-                                while s > 0 && (b[s - 1].is_ascii_alphanumeric() || b[s - 1] == b'_') {
+                                while s > 0
+                                    && (b[s - 1].is_ascii_alphanumeric() || b[s - 1] == b'_')
+                                {
                                     s -= 1;
                                 }
                                 s
@@ -1498,17 +1521,21 @@ fn scan_rust_file(
                             let ident_end_line = {
                                 let b = line.as_bytes();
                                 let mut e = m_end;
-                                while e < b.len() && (b[e].is_ascii_alphanumeric() || b[e] == b'_') {
+                                while e < b.len() && (b[e].is_ascii_alphanumeric() || b[e] == b'_')
+                                {
                                     e += 1;
                                 }
                                 e
                             };
-                            let abs_ident_start = ast.abs_byte_from_line_offset(idx, ident_start_line);
+                            let abs_ident_start =
+                                ast.abs_byte_from_line_offset(idx, ident_start_line);
                             let abs_ident_end = ast.abs_byte_from_line_offset(idx, ident_end_line);
                             let before_ctx = content[..abs_ident_start].trim_end();
                             let after_ctx = content[abs_ident_end..].trim_start();
-                            let is_external_path = before_ctx.ends_with("::") || after_ctx.starts_with("::");
-                            let is_call = after_ctx.starts_with('(') || after_ctx.starts_with("::<");
+                            let is_external_path =
+                                before_ctx.ends_with("::") || after_ctx.starts_with("::");
+                            let is_call =
+                                after_ctx.starts_with('(') || after_ctx.starts_with("::<");
                             if !is_external_path
                                 && !is_call
                                 && !ast.fns.iter().any(|fn_item| {
@@ -1527,31 +1554,30 @@ fn scan_rust_file(
                         && !f.has_io_sink
                         && !f.has_unsafe_wlan_extraction
                     {
-                            let bad_verb = if in_test_context {
-                                crate::rust_ast::has_dangerous_wlan_test_fn_verb(&f.name)
-                            } else {
-                                crate::rust_ast::has_dangerous_wlan_fn_verb(&f.name, false)
-                            };
-                            if !bad_verb {
-                                let safe_test_caller = in_test_context && !f.has_slice_or_split;
-                                let safe_prod_caller = f.is_verified_wlan
-                                    || (!f.has_mut_param
-                                        && !f.has_slice_or_split
-                                        && matches!(
-                                            f.ret_type_str.as_deref(),
-                                            None
-                                                | Some("()")
-                                                | Some("bool")
-                                                | Some("usize")
-                                                | Some("Option<usize>")
-                                                | Some("Option<(usize,usize)>")
-                                                | Some("Result<(),&'staticstr>")
-                                                | Some("Result<(),ReportError>")
-                                                | Some("Result<(),NetError>")
-                                                | Some("Result<bool,&'staticstr>")
-                                                | Some("Result<bool,ReportError>")
-                                                | Some("Result<bool,NetError>")
-                                        ));
+                        let bad_verb = if in_test_context {
+                            crate::rust_ast::has_dangerous_wlan_test_fn_verb(&f.name)
+                        } else {
+                            crate::rust_ast::has_dangerous_wlan_fn_verb(&f.name, false)
+                        };
+                        if !bad_verb {
+                            let safe_test_caller = in_test_context && !f.has_slice_or_split;
+                            let safe_prod_caller = f.is_verified_wlan
+                                || (!f.has_mut_param
+                                    && !f.has_slice_or_split
+                                    && matches!(
+                                        f.ret_type_str.as_deref(),
+                                        None | Some("()")
+                                            | Some("bool")
+                                            | Some("usize")
+                                            | Some("Option<usize>")
+                                            | Some("Option<(usize,usize)>")
+                                            | Some("Result<(),&'staticstr>")
+                                            | Some("Result<(),ReportError>")
+                                            | Some("Result<(),NetError>")
+                                            | Some("Result<bool,&'staticstr>")
+                                            | Some("Result<bool,ReportError>")
+                                            | Some("Result<bool,NetError>")
+                                    ));
                             if safe_test_caller || safe_prod_caller {
                                 continue;
                             }
@@ -1645,7 +1671,13 @@ fn scan_rust_file(
                 if let Some(ast) = ensure_ast(&mut ast_cache, rel_norm, content) {
                     let abs_start = ast.abs_byte_from_line_offset(idx, span.start);
                     let abs_end = ast.abs_byte_from_line_offset(idx, span.end);
-                    if ast.is_safe_string_literal(content, abs_start, abs_end, rule.def.rule_id, &matched) {
+                    if ast.is_safe_string_literal(
+                        content,
+                        abs_start,
+                        abs_end,
+                        rule.def.rule_id,
+                        &matched,
+                    ) {
                         continue;
                     }
                 }
@@ -1666,7 +1698,9 @@ fn scan_rust_file(
                     let start_w = idx.saturating_sub(2);
                     let end_w = (idx + 3).min(lines.len());
                     let window = lines[start_w..end_w].join("\n");
-                    if matched.eq_ignore_ascii_case("PEK") && !registry.pek_context_regex.is_match(&window) {
+                    if matched.eq_ignore_ascii_case("PEK")
+                        && !registry.pek_context_regex.is_match(&window)
+                    {
                         continue;
                     }
                     let norm_m: String = matched
@@ -1729,7 +1763,9 @@ fn scan_rust_file(
                 }
                 RuleKind::LegacyAcm => {
                     if matched.eq_ignore_ascii_case("acm") {
-                        let is_cmd_acm = registry.acm_standalone_id_regex.is_match(&line_code_no_comments)
+                        let is_cmd_acm = registry
+                            .acm_standalone_id_regex
+                            .is_match(&line_code_no_comments)
                             || (in_cmd_attr
                                 && (line.to_ascii_lowercase().contains("name = \"acm\"")
                                     || line.to_ascii_lowercase().contains("name=\"acm\"")
@@ -1894,10 +1930,7 @@ fn scan_rust_file(
             }
         }
 
-        if in_chrome2rust
-            && !is_chrome_baseline_file
-            && rel_norm.contains("chrome2rust/crates/")
-        {
+        if in_chrome2rust && !is_chrome_baseline_file && rel_norm.contains("chrome2rust/crates/") {
             for m in chrome_new_expansion_re.find_iter(line) {
                 if !is_line_negated_at_pos(
                     line,
@@ -1932,123 +1965,136 @@ fn scan_rust_file(
         || content.contains("include_bytes!"))
         && let Some(ast) = ensure_ast(&mut ast_cache, rel_norm, content)
     {
-            let line_of_byte = |bpos: usize| -> usize {
-                match ast.line_starts.binary_search(&bpos) {
-                    Ok(i) => i + 1,
-                    Err(i) => i,
-                }
-            };
-            for &(pos, ref joined) in &ast.concat_strings {
-                let in_test_ctx = is_path_test || ast.in_test_context(pos);
-                for (rule_idx, m_start, m_end, matched) in registry.scan_all_source_matches(joined) {
-                    let rule = &registry.rules[rule_idx];
-                    if rule.def.allow_negation_in_strings
-                        && (crate::surface_cli_mcp::is_negated_exclusion_at_span_with_fs(
-                            joined,
-                            m_start,
-                            m_end,
-                            rule.def.rule_id,
-                            &matched,
-                            true,
-                        ) || ast.is_safe_string_literal(
-                            content,
-                            pos,
-                            (pos + 7).min(content.len()),
-                            rule.def.rule_id,
-                            &matched,
-                        ))
-                    {
-                        continue;
-                    }
-                    if rule.def.kind == RuleKind::ApiCredPek
-                        && matched.eq_ignore_ascii_case("PEK")
-                        && !registry.pek_context_regex.is_match(joined)
-                    {
-                        continue;
-                    }
-                    if rule.def.kind == RuleKind::LegacyAcm
-                        && matched.eq_ignore_ascii_case("acm")
-                        && (registry.acm_audio_context_regex.is_match(joined) || file_has_audio_context)
-                    {
-                        continue;
-                    }
-                    let _ = in_test_ctx;
-                    violations.push(R4Violation {
-                        category: rule.def.category.to_string(),
-                        rule_id: rule.def.rule_id.to_string(),
-                        path: path.to_path_buf(),
-                        line: Some(line_of_byte(pos)),
-                        matched_symbol: matched,
-                        detail: format!("concat! macro string violation: {}", rule.def.description),
-                    });
-                }
+        let line_of_byte = |bpos: usize| -> usize {
+            match ast.line_starts.binary_search(&bpos) {
+                Ok(i) => i + 1,
+                Err(i) => i,
             }
-            for &(pos, ref inc_rel, is_bytes) in &ast.include_str_paths {
-                let Some(parent_dir) = path.parent() else {
-                    continue;
-                };
-                let candidate = parent_dir.join(inc_rel);
-                if let Ok(meta) = std::fs::metadata(&candidate)
-                    && meta.len() <= 2 * 1024 * 1024
-                    && let Ok(raw_bytes) = std::fs::read(&candidate)
+        };
+        for &(pos, ref joined) in &ast.concat_strings {
+            let in_test_ctx = is_path_test || ast.in_test_context(pos);
+            for (rule_idx, m_start, m_end, matched) in registry.scan_all_source_matches(joined) {
+                let rule = &registry.rules[rule_idx];
+                if rule.def.allow_negation_in_strings
+                    && (crate::surface_cli_mcp::is_negated_exclusion_at_span_with_fs(
+                        joined,
+                        m_start,
+                        m_end,
+                        rule.def.rule_id,
+                        &matched,
+                        true,
+                    ) || ast.is_safe_string_literal(
+                        content,
+                        pos,
+                        (pos + 7).min(content.len()),
+                        rule.def.rule_id,
+                        &matched,
+                    ))
                 {
-                    let inc_line_no = line_of_byte(pos);
-                    let macro_kw = if is_bytes { "include_bytes!" } else { "include_str!" };
-                    if let Ok(inc_text) = std::str::from_utf8(&raw_bytes) {
-                        for inc_line in inc_text.lines() {
-                            for (rule_idx, m_start, m_end, matched) in registry.scan_all_source_matches(inc_line) {
-                                let rule = &registry.rules[rule_idx];
-                                if rule.def.allow_negation_in_strings
-                                    && crate::surface_cli_mcp::is_negated_exclusion_at_span_with_fs(
-                                        inc_line,
-                                        m_start,
-                                        m_end,
-                                        rule.def.rule_id,
-                                        &matched,
-                                        true,
-                                    )
-                                {
-                                    continue;
-                                }
-                                if rule.def.kind == RuleKind::ApiCredPek
-                                    && matched.eq_ignore_ascii_case("PEK")
-                                    && !registry.pek_context_regex.is_match(inc_line)
-                                {
-                                    continue;
-                                }
-                                if rule.def.kind == RuleKind::LegacyAcm
-                                    && matched.eq_ignore_ascii_case("acm")
-                                    && (registry.acm_audio_context_regex.is_match(inc_line) || file_has_audio_context)
-                                {
-                                    continue;
-                                }
-                                violations.push(R4Violation {
-                                    category: rule.def.category.to_string(),
-                                    rule_id: rule.def.rule_id.to_string(),
-                                    path: path.to_path_buf(),
-                                    line: Some(inc_line_no),
-                                    matched_symbol: matched,
-                                    detail: format!("{macro_kw}(\"{inc_rel}\") violation: {}", rule.def.description),
-                                });
-                            }
-                        }
-                    } else {
-                        let lossy = String::from_utf8_lossy(&raw_bytes);
-                        for (rule_idx, matched) in registry.scan_all_binary_matches(&lossy) {
+                    continue;
+                }
+                if rule.def.kind == RuleKind::ApiCredPek
+                    && matched.eq_ignore_ascii_case("PEK")
+                    && !registry.pek_context_regex.is_match(joined)
+                {
+                    continue;
+                }
+                if rule.def.kind == RuleKind::LegacyAcm
+                    && matched.eq_ignore_ascii_case("acm")
+                    && (registry.acm_audio_context_regex.is_match(joined) || file_has_audio_context)
+                {
+                    continue;
+                }
+                let _ = in_test_ctx;
+                violations.push(R4Violation {
+                    category: rule.def.category.to_string(),
+                    rule_id: rule.def.rule_id.to_string(),
+                    path: path.to_path_buf(),
+                    line: Some(line_of_byte(pos)),
+                    matched_symbol: matched,
+                    detail: format!("concat! macro string violation: {}", rule.def.description),
+                });
+            }
+        }
+        for &(pos, ref inc_rel, is_bytes) in &ast.include_str_paths {
+            let Some(parent_dir) = path.parent() else {
+                continue;
+            };
+            let candidate = parent_dir.join(inc_rel);
+            if let Ok(meta) = std::fs::metadata(&candidate)
+                && meta.len() <= 2 * 1024 * 1024
+                && let Ok(raw_bytes) = std::fs::read(&candidate)
+            {
+                let inc_line_no = line_of_byte(pos);
+                let macro_kw = if is_bytes {
+                    "include_bytes!"
+                } else {
+                    "include_str!"
+                };
+                if let Ok(inc_text) = std::str::from_utf8(&raw_bytes) {
+                    for inc_line in inc_text.lines() {
+                        for (rule_idx, m_start, m_end, matched) in
+                            registry.scan_all_source_matches(inc_line)
+                        {
                             let rule = &registry.rules[rule_idx];
+                            if rule.def.allow_negation_in_strings
+                                && crate::surface_cli_mcp::is_negated_exclusion_at_span_with_fs(
+                                    inc_line,
+                                    m_start,
+                                    m_end,
+                                    rule.def.rule_id,
+                                    &matched,
+                                    true,
+                                )
+                            {
+                                continue;
+                            }
+                            if rule.def.kind == RuleKind::ApiCredPek
+                                && matched.eq_ignore_ascii_case("PEK")
+                                && !registry.pek_context_regex.is_match(inc_line)
+                            {
+                                continue;
+                            }
+                            if rule.def.kind == RuleKind::LegacyAcm
+                                && matched.eq_ignore_ascii_case("acm")
+                                && (registry.acm_audio_context_regex.is_match(inc_line)
+                                    || file_has_audio_context)
+                            {
+                                continue;
+                            }
                             violations.push(R4Violation {
                                 category: rule.def.category.to_string(),
                                 rule_id: rule.def.rule_id.to_string(),
                                 path: path.to_path_buf(),
                                 line: Some(inc_line_no),
                                 matched_symbol: matched,
-                                detail: format!("{macro_kw}(\"{inc_rel}\") binary violation: {}", rule.def.description),
+                                detail: format!(
+                                    "{macro_kw}(\"{inc_rel}\") violation: {}",
+                                    rule.def.description
+                                ),
                             });
                         }
+                    }
+                } else {
+                    let lossy = String::from_utf8_lossy(&raw_bytes);
+                    for (rule_idx, matched) in registry.scan_all_binary_matches(&lossy) {
+                        let rule = &registry.rules[rule_idx];
+                        violations.push(R4Violation {
+                            category: rule.def.category.to_string(),
+                            rule_id: rule.def.rule_id.to_string(),
+                            path: path.to_path_buf(),
+                            line: Some(inc_line_no),
+                            matched_symbol: matched,
+                            detail: format!(
+                                "{macro_kw}(\"{inc_rel}\") binary violation: {}",
+                                rule.def.description
+                            ),
+                        });
                     }
                 }
             }
         }
+    }
     let _ = is_path_test;
 }
 
@@ -2096,12 +2142,7 @@ fn is_line_negated_at_pos(
         let rel_start = pos.saturating_sub(span.start);
         let rel_end = pos_end.saturating_sub(span.start).min(str_slice.len());
         if crate::surface_cli_mcp::is_negated_exclusion_at_span_with_fs(
-            str_slice,
-            rel_start,
-            rel_end,
-            rule_id,
-            matched,
-            true,
+            str_slice, rel_start, rel_end, rule_id, matched, true,
         ) {
             return true;
         }
@@ -2264,11 +2305,16 @@ fn python_cond_has_non_pure_call(expr: &str) -> bool {
             }
             if k > 0 && (bytes[k - 1].is_ascii_alphanumeric() || bytes[k - 1] == b'_') {
                 let mut id_start = k;
-                while id_start > 0 && (bytes[id_start - 1].is_ascii_alphanumeric() || bytes[id_start - 1] == b'_') {
+                while id_start > 0
+                    && (bytes[id_start - 1].is_ascii_alphanumeric() || bytes[id_start - 1] == b'_')
+                {
                     id_start -= 1;
                 }
                 let callee = &expr[id_start..k];
-                if !matches!(callee, "lower" | "casefold" | "strip" | "lstrip" | "rstrip" | "str" | "len") {
+                if !matches!(
+                    callee,
+                    "lower" | "casefold" | "strip" | "lstrip" | "rstrip" | "str" | "len"
+                ) {
                     return true;
                 }
             }
@@ -2353,10 +2399,13 @@ fn scan_json_file(
     for (idx, line) in content.lines().enumerate() {
         let line_no = idx + 1;
         let trimmed = line.trim();
-        let is_desc_line = trimmed.starts_with("\"description\"") || trimmed.starts_with("\"detail\"");
+        let is_desc_line =
+            trimmed.starts_with("\"description\"") || trimmed.starts_with("\"detail\"");
         for (rule_idx, m_start, m_end, matched) in registry.scan_all_source_matches(line) {
             let rule = &registry.rules[rule_idx];
-            if rule.def.kind == RuleKind::LegacyAcm && registry.acm_audio_context_regex.is_match(line) {
+            if rule.def.kind == RuleKind::LegacyAcm
+                && registry.acm_audio_context_regex.is_match(line)
+            {
                 continue;
             }
             if is_desc_line

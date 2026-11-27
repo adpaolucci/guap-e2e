@@ -1,8 +1,8 @@
-use std::path::Path;
-use anyhow::{ensure, Result};
 use crate::util::{
-    read_u16_le, read_u32_le, utf16le_bytes, write_file_deterministic, xor32_u32s, FIXED_FILETIME,
+    FIXED_FILETIME, read_u16_le, read_u32_le, utf16le_bytes, write_file_deterministic, xor32_u32s,
 };
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 const ESE_PAGE_SIZE: usize = 4096;
 
@@ -42,7 +42,10 @@ struct EseTableSpec {
 
 fn encode_ese_record(cols: &[EseColumnSpec], row: &[(u16, EseVal)]) -> Vec<u8> {
     let fixed_cols: Vec<&EseColumnSpec> = cols.iter().filter(|c| c.fid < 0x80).collect();
-    let var_cols: Vec<&EseColumnSpec> = cols.iter().filter(|c| c.fid >= 0x80 && c.fid < 0x100).collect();
+    let var_cols: Vec<&EseColumnSpec> = cols
+        .iter()
+        .filter(|c| c.fid >= 0x80 && c.fid < 0x100)
+        .collect();
 
     let fid_fixed_last = fixed_cols.iter().map(|c| c.fid).max().unwrap_or(0) as u8;
     let fid_var_last = if var_cols.is_empty() {
@@ -61,9 +64,13 @@ fn encode_ese_record(cols: &[EseColumnSpec], row: &[(u16, EseVal)]) -> Vec<u8> {
         match (col, val) {
             (Some(c), Some(v)) => match (c.coltyp, v) {
                 (EseColTyp::UnsignedByte, EseVal::U8(b)) => fixed_data.push(*b),
-                (EseColTyp::Short, EseVal::I16(x)) => fixed_data.extend_from_slice(&x.to_le_bytes()),
+                (EseColTyp::Short, EseVal::I16(x)) => {
+                    fixed_data.extend_from_slice(&x.to_le_bytes())
+                }
                 (EseColTyp::Long, EseVal::I32(x)) => fixed_data.extend_from_slice(&x.to_le_bytes()),
-                (EseColTyp::LongLong, EseVal::I64(x)) => fixed_data.extend_from_slice(&x.to_le_bytes()),
+                (EseColTyp::LongLong, EseVal::I64(x)) => {
+                    fixed_data.extend_from_slice(&x.to_le_bytes())
+                }
                 _ => {
                     let sz = match c.coltyp {
                         EseColTyp::UnsignedByte => 1,
@@ -258,30 +265,84 @@ fn chunk_catalog_records(catalog_records: Vec<(u32, Vec<u8>)>) -> Vec<Vec<(u32, 
 
 fn build_ese_db(tables: &[EseTableSpec]) -> Result<Vec<u8>> {
     let msys_cols = vec![
-        EseColumnSpec { name: "ObjidTable", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-        EseColumnSpec { name: "Type", coltyp: EseColTyp::Short, fid: 2, cb_max: 2 },
-        EseColumnSpec { name: "Id", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-        EseColumnSpec { name: "ColtypOrPgnoFDP", coltyp: EseColTyp::Long, fid: 4, cb_max: 4 },
-        EseColumnSpec { name: "SpaceUsage", coltyp: EseColTyp::Long, fid: 5, cb_max: 4 },
-        EseColumnSpec { name: "Flags", coltyp: EseColTyp::Long, fid: 6, cb_max: 4 },
-        EseColumnSpec { name: "PagesOrLocale", coltyp: EseColTyp::Long, fid: 7, cb_max: 4 },
-        EseColumnSpec { name: "Name", coltyp: EseColTyp::Text, fid: 0x80, cb_max: 255 },
+        EseColumnSpec {
+            name: "ObjidTable",
+            coltyp: EseColTyp::Long,
+            fid: 1,
+            cb_max: 4,
+        },
+        EseColumnSpec {
+            name: "Type",
+            coltyp: EseColTyp::Short,
+            fid: 2,
+            cb_max: 2,
+        },
+        EseColumnSpec {
+            name: "Id",
+            coltyp: EseColTyp::Long,
+            fid: 3,
+            cb_max: 4,
+        },
+        EseColumnSpec {
+            name: "ColtypOrPgnoFDP",
+            coltyp: EseColTyp::Long,
+            fid: 4,
+            cb_max: 4,
+        },
+        EseColumnSpec {
+            name: "SpaceUsage",
+            coltyp: EseColTyp::Long,
+            fid: 5,
+            cb_max: 4,
+        },
+        EseColumnSpec {
+            name: "Flags",
+            coltyp: EseColTyp::Long,
+            fid: 6,
+            cb_max: 4,
+        },
+        EseColumnSpec {
+            name: "PagesOrLocale",
+            coltyp: EseColTyp::Long,
+            fid: 7,
+            cb_max: 4,
+        },
+        EseColumnSpec {
+            name: "Name",
+            coltyp: EseColTyp::Text,
+            fid: 0x80,
+            cb_max: 255,
+        },
     ];
 
     // Pass 1: determine exact catalog page count (ColtypOrPgnoFDP is always a fixed 4-byte Long)
     let placeholder_pgnos = vec![0u32; tables.len()];
-    let cat_page_count = chunk_catalog_records(build_catalog_records(&msys_cols, tables, &placeholder_pgnos)).len() as u32;
+    let cat_page_count = chunk_catalog_records(build_catalog_records(
+        &msys_cols,
+        tables,
+        &placeholder_pgnos,
+    ))
+    .len() as u32;
 
     // Pass 2: assign contiguous pgno_first starting immediately after MSysObjects (no zero-page holes)
-    let pgno_firsts: Vec<u32> = (0..tables.len()).map(|i| cat_page_count + 1 + i as u32).collect();
+    let pgno_firsts: Vec<u32> = (0..tables.len())
+        .map(|i| cat_page_count + 1 + i as u32)
+        .collect();
     let chunks = chunk_catalog_records(build_catalog_records(&msys_cols, tables, &pgno_firsts));
-    ensure!(chunks.len() as u32 == cat_page_count, "ESE catalog page count mismatch");
+    ensure!(
+        chunks.len() as u32 == cat_page_count,
+        "ESE catalog page count mismatch"
+    );
 
     let mut pages: Vec<(u32, Vec<u8>)> = Vec::new();
     for (idx, chunk) in chunks.into_iter().enumerate() {
         let pgno = 1 + idx as u32;
         let prev = if idx == 0 { 0 } else { pgno - 1 };
-        let next = if idx + 1 < cat_page_count as usize { pgno + 1 } else { 0 };
+        let next = if idx + 1 < cat_page_count as usize {
+            pgno + 1
+        } else {
+            0
+        };
         pages.push((pgno, build_leaf_page(pgno, prev, next, 2, idx == 0, &chunk)));
     }
 
@@ -290,7 +351,10 @@ fn build_ese_db(tables: &[EseTableSpec]) -> Result<Vec<u8>> {
         for (i, row) in tbl.rows.iter().enumerate() {
             recs.push(((i + 1) as u32, encode_ese_record(&tbl.columns, row)));
         }
-        pages.push((pgno_first, build_leaf_page(pgno_first, 0, 0, tbl.objid_fdp, true, &recs)));
+        pages.push((
+            pgno_first,
+            build_leaf_page(pgno_first, 0, 0, tbl.objid_fdp, true, &recs),
+        ));
     }
 
     let max_pgno = pages.iter().map(|(p, _)| *p).max().unwrap_or(1);
@@ -299,13 +363,13 @@ fn build_ese_db(tables: &[EseTableSpec]) -> Result<Vec<u8>> {
     let mut hdr = vec![0u8; ESE_PAGE_SIZE];
     hdr[0x04..0x08].copy_from_slice(&0x89AB_CDEFu32.to_le_bytes()); // ulMagic
     hdr[0x08..0x0C].copy_from_slice(&0x0000_0620u32.to_le_bytes()); // ulVersion
-    hdr[0x0C..0x10].copy_from_slice(&0u32.to_le_bytes());           // attrib (Database)
-    hdr[0x10..0x18].copy_from_slice(&100u64.to_le_bytes());         // dbtimeDirtied
+    hdr[0x0C..0x10].copy_from_slice(&0u32.to_le_bytes()); // attrib (Database)
+    hdr[0x10..0x18].copy_from_slice(&100u64.to_le_bytes()); // dbtimeDirtied
     // signDb (28B): deterministic ulRandom + fixed LOGTIME (2026-11-22T14:30:00Z)
     hdr[0x18..0x1C].copy_from_slice(&0x4755_4150u32.to_le_bytes());
     hdr[0x1C..0x24].copy_from_slice(&[0, 30, 14, 22, 11, 126, 0, 0]);
-    hdr[0x34..0x38].copy_from_slice(&3u32.to_le_bytes());           // JET_dbstateCleanShutdown
-    hdr[0xD4..0xD8].copy_from_slice(&max_objid.to_le_bytes());     // objidLast
+    hdr[0x34..0x38].copy_from_slice(&3u32.to_le_bytes()); // JET_dbstateCleanShutdown
+    hdr[0xD4..0xD8].copy_from_slice(&max_objid.to_le_bytes()); // objidLast
     hdr[0xE4..0xE8].copy_from_slice(&0x0000_0620u32.to_le_bytes()); // ulVersion (format)
     hdr[0xE8..0xEC].copy_from_slice(&0x0000_012Cu32.to_le_bytes()); // ulUpdate
     hdr[0xEC..0xF0].copy_from_slice(&(ESE_PAGE_SIZE as u32).to_le_bytes());
@@ -335,32 +399,101 @@ pub fn generate_srum_dir(srum_dir: &Path) -> Result<()> {
             name: "SruDbIdMapTable",
             objid_fdp: 10,
             columns: vec![
-                EseColumnSpec { name: "IdType", coltyp: EseColTyp::UnsignedByte, fid: 1, cb_max: 1 },
-                EseColumnSpec { name: "IdIndex", coltyp: EseColTyp::Long, fid: 2, cb_max: 4 },
-                EseColumnSpec { name: "IdBlob", coltyp: EseColTyp::LongBinary, fid: 0x80, cb_max: 512 },
+                EseColumnSpec {
+                    name: "IdType",
+                    coltyp: EseColTyp::UnsignedByte,
+                    fid: 1,
+                    cb_max: 1,
+                },
+                EseColumnSpec {
+                    name: "IdIndex",
+                    coltyp: EseColTyp::Long,
+                    fid: 2,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "IdBlob",
+                    coltyp: EseColTyp::LongBinary,
+                    fid: 0x80,
+                    cb_max: 512,
+                },
             ],
             rows: vec![
                 vec![
                     (1, EseVal::U8(0)),
                     (2, EseVal::I32(1)),
-                    (0x80, EseVal::Bytes(utf16le_bytes(r"\Device\HarddiskVolume3\Tools\forensics_sample.exe"))),
+                    (
+                        0x80,
+                        EseVal::Bytes(utf16le_bytes(
+                            r"\Device\HarddiskVolume3\Tools\forensics_sample.exe",
+                        )),
+                    ),
                 ],
-                vec![(1, EseVal::U8(3)), (2, EseVal::I32(2)), (0x80, EseVal::Bytes(alice_sid))],
+                vec![
+                    (1, EseVal::U8(3)),
+                    (2, EseVal::I32(2)),
+                    (0x80, EseVal::Bytes(alice_sid)),
+                ],
             ],
         },
         EseTableSpec {
             name: "{973F5D5C-1D90-4944-BE8E-24B94231A174}",
             objid_fdp: 11,
             columns: vec![
-                EseColumnSpec { name: "AutoIncId", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "TimeStamp", coltyp: EseColTyp::LongLong, fid: 2, cb_max: 8 },
-                EseColumnSpec { name: "AppId", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-                EseColumnSpec { name: "UserId", coltyp: EseColTyp::Long, fid: 4, cb_max: 4 },
-                EseColumnSpec { name: "InterfaceLuid", coltyp: EseColTyp::LongLong, fid: 5, cb_max: 8 },
-                EseColumnSpec { name: "L2ProfileId", coltyp: EseColTyp::LongLong, fid: 6, cb_max: 8 },
-                EseColumnSpec { name: "L2ProfileFlags", coltyp: EseColTyp::Long, fid: 7, cb_max: 4 },
-                EseColumnSpec { name: "BytesSent", coltyp: EseColTyp::LongLong, fid: 8, cb_max: 8 },
-                EseColumnSpec { name: "BytesRecvd", coltyp: EseColTyp::LongLong, fid: 9, cb_max: 8 },
+                EseColumnSpec {
+                    name: "AutoIncId",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "TimeStamp",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 2,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "AppId",
+                    coltyp: EseColTyp::Long,
+                    fid: 3,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UserId",
+                    coltyp: EseColTyp::Long,
+                    fid: 4,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "InterfaceLuid",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 5,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "L2ProfileId",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 6,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "L2ProfileFlags",
+                    coltyp: EseColTyp::Long,
+                    fid: 7,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "BytesSent",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 8,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "BytesRecvd",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 9,
+                    cb_max: 8,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(1)),
@@ -378,19 +511,84 @@ pub fn generate_srum_dir(srum_dir: &Path) -> Result<()> {
             name: "{D10CA2FE-6FCF-4F6D-848E-B2E99266FA89}",
             objid_fdp: 12,
             columns: vec![
-                EseColumnSpec { name: "AutoIncId", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "TimeStamp", coltyp: EseColTyp::LongLong, fid: 2, cb_max: 8 },
-                EseColumnSpec { name: "AppId", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-                EseColumnSpec { name: "UserId", coltyp: EseColTyp::Long, fid: 4, cb_max: 4 },
-                EseColumnSpec { name: "ForegroundCycleTime", coltyp: EseColTyp::LongLong, fid: 5, cb_max: 8 },
-                EseColumnSpec { name: "BackgroundCycleTime", coltyp: EseColTyp::LongLong, fid: 6, cb_max: 8 },
-                EseColumnSpec { name: "FaceTime", coltyp: EseColTyp::LongLong, fid: 7, cb_max: 8 },
-                EseColumnSpec { name: "ForegroundBytesRead", coltyp: EseColTyp::LongLong, fid: 8, cb_max: 8 },
-                EseColumnSpec { name: "ForegroundBytesWritten", coltyp: EseColTyp::LongLong, fid: 9, cb_max: 8 },
-                EseColumnSpec { name: "BackgroundBytesRead", coltyp: EseColTyp::LongLong, fid: 10, cb_max: 8 },
-                EseColumnSpec { name: "BackgroundBytesWritten", coltyp: EseColTyp::LongLong, fid: 11, cb_max: 8 },
-                EseColumnSpec { name: "ForegroundContextSwitches", coltyp: EseColTyp::Long, fid: 12, cb_max: 4 },
-                EseColumnSpec { name: "BackgroundContextSwitches", coltyp: EseColTyp::Long, fid: 13, cb_max: 4 },
+                EseColumnSpec {
+                    name: "AutoIncId",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "TimeStamp",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 2,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "AppId",
+                    coltyp: EseColTyp::Long,
+                    fid: 3,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UserId",
+                    coltyp: EseColTyp::Long,
+                    fid: 4,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "ForegroundCycleTime",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 5,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "BackgroundCycleTime",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 6,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "FaceTime",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 7,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "ForegroundBytesRead",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 8,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "ForegroundBytesWritten",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 9,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "BackgroundBytesRead",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 10,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "BackgroundBytesWritten",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 11,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "ForegroundContextSwitches",
+                    coltyp: EseColTyp::Long,
+                    fid: 12,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "BackgroundContextSwitches",
+                    coltyp: EseColTyp::Long,
+                    fid: 13,
+                    cb_max: 4,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(1)),
@@ -412,33 +610,106 @@ pub fn generate_srum_dir(srum_dir: &Path) -> Result<()> {
             name: "{FEE4E14F-02A9-4550-B5CE-5FA2DA202E37}",
             objid_fdp: 13,
             columns: vec![
-                EseColumnSpec { name: "AutoIncId", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "TimeStamp", coltyp: EseColTyp::LongLong, fid: 2, cb_max: 8 },
-                EseColumnSpec { name: "AppId", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-                EseColumnSpec { name: "UserId", coltyp: EseColTyp::Long, fid: 4, cb_max: 4 },
-                EseColumnSpec { name: "BinaryData", coltyp: EseColTyp::LongBinary, fid: 0x80, cb_max: 64 },
+                EseColumnSpec {
+                    name: "AutoIncId",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "TimeStamp",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 2,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "AppId",
+                    coltyp: EseColTyp::Long,
+                    fid: 3,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UserId",
+                    coltyp: EseColTyp::Long,
+                    fid: 4,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "BinaryData",
+                    coltyp: EseColTyp::LongBinary,
+                    fid: 0x80,
+                    cb_max: 64,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(1)),
                 (2, EseVal::I64(FIXED_FILETIME as i64)),
                 (3, EseVal::I32(1)),
                 (4, EseVal::I32(2)),
-                (0x80, EseVal::Bytes(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])),
+                (
+                    0x80,
+                    EseVal::Bytes(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
+                ),
             ]],
         },
         EseTableSpec {
             name: "{DD6636C4-8929-4683-974E-22C046A43763}",
             objid_fdp: 14,
             columns: vec![
-                EseColumnSpec { name: "AutoIncId", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "TimeStamp", coltyp: EseColTyp::LongLong, fid: 2, cb_max: 8 },
-                EseColumnSpec { name: "AppId", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-                EseColumnSpec { name: "UserId", coltyp: EseColTyp::Long, fid: 4, cb_max: 4 },
-                EseColumnSpec { name: "InterfaceLuid", coltyp: EseColTyp::LongLong, fid: 5, cb_max: 8 },
-                EseColumnSpec { name: "L2ProfileId", coltyp: EseColTyp::LongLong, fid: 6, cb_max: 8 },
-                EseColumnSpec { name: "ConnectedTime", coltyp: EseColTyp::Long, fid: 7, cb_max: 4 },
-                EseColumnSpec { name: "ConnectStartTime", coltyp: EseColTyp::LongLong, fid: 8, cb_max: 8 },
-                EseColumnSpec { name: "L2ProfileFlags", coltyp: EseColTyp::Long, fid: 9, cb_max: 4 },
+                EseColumnSpec {
+                    name: "AutoIncId",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "TimeStamp",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 2,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "AppId",
+                    coltyp: EseColTyp::Long,
+                    fid: 3,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UserId",
+                    coltyp: EseColTyp::Long,
+                    fid: 4,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "InterfaceLuid",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 5,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "L2ProfileId",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 6,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "ConnectedTime",
+                    coltyp: EseColTyp::Long,
+                    fid: 7,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "ConnectStartTime",
+                    coltyp: EseColTyp::LongLong,
+                    fid: 8,
+                    cb_max: 8,
+                },
+                EseColumnSpec {
+                    name: "L2ProfileFlags",
+                    coltyp: EseColTyp::Long,
+                    fid: 9,
+                    cb_max: 4,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(1)),
@@ -460,11 +731,36 @@ pub fn generate_srum_dir(srum_dir: &Path) -> Result<()> {
             name: "tbHistory",
             objid_fdp: 10,
             columns: vec![
-                EseColumnSpec { name: "IdEvent", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "Status", coltyp: EseColTyp::Long, fid: 2, cb_max: 4 },
-                EseColumnSpec { name: "ServerSelection", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-                EseColumnSpec { name: "MappedResult", coltyp: EseColTyp::Long, fid: 4, cb_max: 4 },
-                EseColumnSpec { name: "UnmappedResult", coltyp: EseColTyp::Long, fid: 5, cb_max: 4 },
+                EseColumnSpec {
+                    name: "IdEvent",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "Status",
+                    coltyp: EseColTyp::Long,
+                    fid: 2,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "ServerSelection",
+                    coltyp: EseColTyp::Long,
+                    fid: 3,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "MappedResult",
+                    coltyp: EseColTyp::Long,
+                    fid: 4,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UnmappedResult",
+                    coltyp: EseColTyp::Long,
+                    fid: 5,
+                    cb_max: 4,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(1)),
@@ -478,10 +774,30 @@ pub fn generate_srum_dir(srum_dir: &Path) -> Result<()> {
             name: "tbUpdates",
             objid_fdp: 11,
             columns: vec![
-                EseColumnSpec { name: "IdLocal", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "RevisionNumber", coltyp: EseColTyp::Long, fid: 2, cb_max: 4 },
-                EseColumnSpec { name: "UpdateDataAvailable", coltyp: EseColTyp::Long, fid: 3, cb_max: 4 },
-                EseColumnSpec { name: "UpdateId", coltyp: EseColTyp::Binary, fid: 0x80, cb_max: 16 },
+                EseColumnSpec {
+                    name: "IdLocal",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "RevisionNumber",
+                    coltyp: EseColTyp::Long,
+                    fid: 2,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UpdateDataAvailable",
+                    coltyp: EseColTyp::Long,
+                    fid: 3,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "UpdateId",
+                    coltyp: EseColTyp::Binary,
+                    fid: 0x80,
+                    cb_max: 16,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(101)),
@@ -494,20 +810,54 @@ pub fn generate_srum_dir(srum_dir: &Path) -> Result<()> {
             name: "tbUpdateLocalizedProps",
             objid_fdp: 12,
             columns: vec![
-                EseColumnSpec { name: "IdLocal", coltyp: EseColTyp::Long, fid: 1, cb_max: 4 },
-                EseColumnSpec { name: "Title", coltyp: EseColTyp::LongText, fid: 0x80, cb_max: 512 },
-                EseColumnSpec { name: "Description", coltyp: EseColTyp::LongText, fid: 0x81, cb_max: 1024 },
-                EseColumnSpec { name: "SupportUrl", coltyp: EseColTyp::LongText, fid: 0x82, cb_max: 512 },
+                EseColumnSpec {
+                    name: "IdLocal",
+                    coltyp: EseColTyp::Long,
+                    fid: 1,
+                    cb_max: 4,
+                },
+                EseColumnSpec {
+                    name: "Title",
+                    coltyp: EseColTyp::LongText,
+                    fid: 0x80,
+                    cb_max: 512,
+                },
+                EseColumnSpec {
+                    name: "Description",
+                    coltyp: EseColTyp::LongText,
+                    fid: 0x81,
+                    cb_max: 1024,
+                },
+                EseColumnSpec {
+                    name: "SupportUrl",
+                    coltyp: EseColTyp::LongText,
+                    fid: 0x82,
+                    cb_max: 512,
+                },
             ],
             rows: vec![vec![
                 (1, EseVal::I32(101)),
-                (0x80, EseVal::Bytes(utf16le_bytes("2026-11 Cumulative Update for Windows 11 (KB5048685)"))),
-                (0x81, EseVal::Bytes(utf16le_bytes("Security and quality improvements."))),
-                (0x82, EseVal::Bytes(utf16le_bytes("https://support.microsoft.com/kb/5048685"))),
+                (
+                    0x80,
+                    EseVal::Bytes(utf16le_bytes(
+                        "2026-11 Cumulative Update for Windows 11 (KB5048685)",
+                    )),
+                ),
+                (
+                    0x81,
+                    EseVal::Bytes(utf16le_bytes("Security and quality improvements.")),
+                ),
+                (
+                    0x82,
+                    EseVal::Bytes(utf16le_bytes("https://support.microsoft.com/kb/5048685")),
+                ),
             ]],
         },
     ];
-    write_file_deterministic(&srum_dir.join("DataStore.edb"), &build_ese_db(&datastore_tables)?)?;
+    write_file_deterministic(
+        &srum_dir.join("DataStore.edb"),
+        &build_ese_db(&datastore_tables)?,
+    )?;
 
     Ok(())
 }
@@ -524,20 +874,43 @@ pub fn verify_srum_dir(srum_dir: &Path) -> Result<(usize, Vec<String>)> {
                 "{DD6636C4-8929-4683-974E-22C046A43763}",
             ],
         ),
-        ("DataStore.edb", &["tbHistory", "tbUpdates", "tbUpdateLocalizedProps"]),
+        (
+            "DataStore.edb",
+            &["tbHistory", "tbUpdates", "tbUpdateLocalizedProps"],
+        ),
     ];
 
     let mut details = Vec::new();
     for (fname, required_tables) in &checks {
         let buf = std::fs::read(srum_dir.join(fname))?;
-        ensure!(buf.len() >= 3 * ESE_PAGE_SIZE && buf.len() % ESE_PAGE_SIZE == 0, "{}: bad size", fname);
+        ensure!(
+            buf.len() >= 3 * ESE_PAGE_SIZE && buf.len() % ESE_PAGE_SIZE == 0,
+            "{}: bad size",
+            fname
+        );
         let p0 = &buf[0..ESE_PAGE_SIZE];
         let p1 = &buf[ESE_PAGE_SIZE..2 * ESE_PAGE_SIZE];
-        ensure!(p0 == p1, "{}: primary and backup header pages differ", fname);
-        ensure!(read_u32_le(p0, 4)? == 0x89AB_CDEF, "{}: bad ESE signature", fname);
-        ensure!(read_u32_le(p0, 0xEC)? == ESE_PAGE_SIZE as u32, "{}: bad page size", fname);
+        ensure!(
+            p0 == p1,
+            "{}: primary and backup header pages differ",
+            fname
+        );
+        ensure!(
+            read_u32_le(p0, 4)? == 0x89AB_CDEF,
+            "{}: bad ESE signature",
+            fname
+        );
+        ensure!(
+            read_u32_le(p0, 0xEC)? == ESE_PAGE_SIZE as u32,
+            "{}: bad page size",
+            fname
+        );
         let expected_hdr_ck = 0x89AB_CDEFu32 ^ xor32_u32s(&p0[4..ESE_PAGE_SIZE]);
-        ensure!(read_u32_le(p0, 0)? == expected_hdr_ck, "{}: header XOR checksum mismatch", fname);
+        ensure!(
+            read_u32_le(p0, 0)? == expected_hdr_ck,
+            "{}: header XOR checksum mismatch",
+            fname
+        );
 
         let num_data_pages = (buf.len() / ESE_PAGE_SIZE) - 2;
         for idx in 0..num_data_pages {
@@ -548,17 +921,40 @@ pub fn verify_srum_dir(srum_dir: &Path) -> Result<(usize, Vec<String>)> {
             let stored_ecc_low = read_u16_le(page, 4)?;
             let stored_ecc_high = read_u16_le(page, 6)?;
             let (calc_low, calc_high) = compute_page_ecc(&page[8..ESE_PAGE_SIZE]);
-            ensure!(read_u32_le(page, 0x18)? != 0, "{}: page {} has zero objidFDP (uninitialized page)", fname, pgno);
-            ensure!(stored_xor == expected_xor, "{}: page {} XOR mismatch", fname, pgno);
-            ensure!(stored_ecc_low == calc_low && stored_ecc_high == calc_high, "{}: page {} ECC mismatch", fname, pgno);
+            ensure!(
+                read_u32_le(page, 0x18)? != 0,
+                "{}: page {} has zero objidFDP (uninitialized page)",
+                fname,
+                pgno
+            );
+            ensure!(
+                stored_xor == expected_xor,
+                "{}: page {} XOR mismatch",
+                fname,
+                pgno
+            );
+            ensure!(
+                stored_ecc_low == calc_low && stored_ecc_high == calc_high,
+                "{}: page {} ECC mismatch",
+                fname,
+                pgno
+            );
         }
 
         let catalog_slice = &buf[2 * ESE_PAGE_SIZE..];
         let catalog_str = String::from_utf8_lossy(catalog_slice);
         for tname in *required_tables {
-            ensure!(catalog_str.contains(tname), "{}: missing table {}", fname, tname);
+            ensure!(
+                catalog_str.contains(tname),
+                "{}: missing table {}",
+                fname,
+                tname
+            );
         }
-        details.push(format!("srum/{}: {} data pages verified (ECC+XOR OK)", fname, num_data_pages));
+        details.push(format!(
+            "srum/{}: {} data pages verified (ECC+XOR OK)",
+            fname, num_data_pages
+        ));
     }
 
     Ok((checks.len(), details))

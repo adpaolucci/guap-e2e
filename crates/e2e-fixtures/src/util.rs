@@ -1,5 +1,5 @@
-﻿use std::path::Path;
 use sha2::{Digest, Sha256};
+use std::path::Path;
 
 pub const FIXED_ISO_TIMESTAMP: &str = "2026-11-22T14:30:00Z";
 pub const FIXED_UNIX_SECS: u64 = 1_795_357_800;

@@ -1,12 +1,12 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
-use rusqlite::Connection;
-use sha2::{Digest, Sha256};
 use crate::lz4_block::{decode_mozlz4, encode_mozlz4};
 use crate::util::{
-    crc32_ieee, read_u16_be, read_u32_be, sha1_hex_upper, write_file_deterministic,
-    FIXED_CF_TIME, FIXED_CHROME_US, FIXED_PRTIME_US, FIXED_UNIX_SECS,
+    FIXED_CF_TIME, FIXED_CHROME_US, FIXED_PRTIME_US, FIXED_UNIX_SECS, crc32_ieee, read_u16_be,
+    read_u32_be, sha1_hex_upper, write_file_deterministic,
 };
+use anyhow::{Result, ensure};
+use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+use std::path::Path;
 
 pub fn build_sample_exif_jpg() -> Vec<u8> {
     let mut tiff = Vec::new();
@@ -67,7 +67,14 @@ pub fn build_sample_exif_jpg() -> Vec<u8> {
     push_ifd_entry(&mut gps_ifd, 0x0003, 2, 2, u32::from_le_bytes(*b"W\0\0\0"));
     push_ifd_entry(&mut gps_ifd, 0x0004, 5, 3, lon_off);
     gps_ifd.extend_from_slice(&0u32.to_le_bytes());
-    for (num, den) in [(43u32, 1u32), (39, 1), (1152, 100), (79, 1), (22, 1), (5952, 100)] {
+    for (num, den) in [
+        (43u32, 1u32),
+        (39, 1),
+        (1152, 100),
+        (79, 1),
+        (22, 1),
+        (5952, 100),
+    ] {
         gps_ifd.extend_from_slice(&num.to_le_bytes());
         gps_ifd.extend_from_slice(&den.to_le_bytes());
     }
@@ -91,9 +98,15 @@ pub fn build_sample_exif_jpg() -> Vec<u8> {
     jpg.extend_from_slice(&tiff);
     jpg.extend_from_slice(&[0xFF, 0xDB, 0x00, 0x43, 0x00]);
     jpg.extend_from_slice(&[1u8; 64]);
-    jpg.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00]);
-    jpg.extend_from_slice(&[0xFF, 0xC4, 0x00, 0x14, 0x00, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    jpg.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, 0x00, 0xFF, 0xD9]);
+    jpg.extend_from_slice(&[
+        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00,
+    ]);
+    jpg.extend_from_slice(&[
+        0xFF, 0xC4, 0x00, 0x14, 0x00, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    jpg.extend_from_slice(&[
+        0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, 0x00, 0xFF, 0xD9,
+    ]);
     jpg
 }
 
@@ -129,7 +142,10 @@ fn build_mp4_segment(is_init: bool) -> Vec<u8> {
     out.extend_from_slice(&16u32.to_be_bytes());
     out.extend_from_slice(&24u32.to_be_bytes());
     out.extend_from_slice(b"mdat");
-    out.extend_from_slice(&[0x00, 0x00, 0x00, 0x0C, 0x65, 0x88, 0x84, 0x21, 0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44]);
+    out.extend_from_slice(&[
+        0x00, 0x00, 0x00, 0x0C, 0x65, 0x88, 0x84, 0x21, 0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33,
+        0x44,
+    ]);
     out
 }
 
@@ -336,7 +352,10 @@ pub fn generate_browser_dir(browser_dir: &Path) -> Result<()> {
     let jpg_bytes = build_sample_exif_jpg();
     write_file_deterministic(&media_dir.join("sample_exif.jpg"), &jpg_bytes)?;
     write_file_deterministic(&media_dir.join("sample_fmp4.mp4"), &build_mp4_segment(true))?;
-    write_file_deterministic(&media_dir.join("sample_segment.m4s"), &build_mp4_segment(false))?;
+    write_file_deterministic(
+        &media_dir.join("sample_segment.m4s"),
+        &build_mp4_segment(false),
+    )?;
 
     let fx_dir = browser_dir.join("firefox/profile_default");
     std::fs::create_dir_all(&fx_dir)?;
@@ -344,12 +363,16 @@ pub fn generate_browser_dir(browser_dir: &Path) -> Result<()> {
     let k1 = ":https://example.org/docs/report.html";
     let html_payload = b"<!DOCTYPE html><html><body><h1>Firefox Cache2</h1></body></html>";
     write_file_deterministic(
-        &fx_dir.join("cache2/entries").join(sha1_hex_upper(k1.as_bytes())),
+        &fx_dir
+            .join("cache2/entries")
+            .join(sha1_hex_upper(k1.as_bytes())),
         &build_firefox_cache2_entry(k1, "text/html; charset=utf-8", html_payload),
     )?;
     let k2 = ":https://example.org/assets/sample_exif.jpg";
     write_file_deterministic(
-        &fx_dir.join("cache2/entries").join(sha1_hex_upper(k2.as_bytes())),
+        &fx_dir
+            .join("cache2/entries")
+            .join(sha1_hex_upper(k2.as_bytes())),
         &build_firefox_cache2_entry(k2, "image/jpeg", &jpg_bytes),
     )?;
 
@@ -425,48 +448,93 @@ pub fn generate_browser_dir(browser_dir: &Path) -> Result<()> {
     write_file_deterministic(&fx_dir.join("extensions.json"), &addons_bytes)?;
 
     let session_json = br#"{"version":["sessionrestore",1],"windows":[{"tabs":[{"entries":[{"url":"https://example.org/docs","title":"Example Docs"}],"index":1,"lastAccessed":1795357800000,"pinned":true}]}]}"#;
-    write_file_deterministic(&fx_dir.join("sessionstore.jsonlz4"), &encode_mozlz4(session_json))?;
+    write_file_deterministic(
+        &fx_dir.join("sessionstore.jsonlz4"),
+        &encode_mozlz4(session_json),
+    )?;
 
     let bm_json = br#"{"guid":"root________","title":"","index":0,"typeCode":2,"children":[{"guid":"toolbar_____","title":"Bookmarks Toolbar","typeCode":2,"children":[{"guid":"bm_guid_0001","title":"rusqlite Docs","uri":"https://docs.rs/rusqlite","typeCode":1,"dateAdded":1795350000000000,"lastModified":1795357200000000}]}]}"#;
-    write_file_deterministic(&fx_dir.join("bookmarkbackups/bookmarks-2026-11-22.jsonlz4"), &encode_mozlz4(bm_json))?;
+    write_file_deterministic(
+        &fx_dir.join("bookmarkbackups/bookmarks-2026-11-22.jsonlz4"),
+        &encode_mozlz4(bm_json),
+    )?;
 
     let saf_dir = browser_dir.join("safari");
     std::fs::create_dir_all(&saf_dir)?;
 
     let bm_plist = PlistVal::Dict(vec![
         ("Title".into(), PlistVal::Ascii(String::new())),
-        ("WebBookmarkType".into(), PlistVal::Ascii("WebBookmarkTypeList".into())),
-        ("Children".into(), PlistVal::Array(vec![PlistVal::Dict(vec![
-            ("Title".into(), PlistVal::Ascii("BookmarksBar".into())),
-            ("WebBookmarkType".into(), PlistVal::Ascii("WebBookmarkTypeList".into())),
-            ("Children".into(), PlistVal::Array(vec![PlistVal::Dict(vec![
-                ("WebBookmarkType".into(), PlistVal::Ascii("WebBookmarkTypeLeaf".into())),
-                ("WebBookmarkUUID".into(), PlistVal::Ascii("SAFARI-BM-0001".into())),
-                ("URLString".into(), PlistVal::Ascii("https://example.org/safari-guide".into())),
-                ("URIDictionary".into(), PlistVal::Dict(vec![("title".into(), PlistVal::Ascii("Safari Guide".into()))])),
-            ])])),
-        ])])),
+        (
+            "WebBookmarkType".into(),
+            PlistVal::Ascii("WebBookmarkTypeList".into()),
+        ),
+        (
+            "Children".into(),
+            PlistVal::Array(vec![PlistVal::Dict(vec![
+                ("Title".into(), PlistVal::Ascii("BookmarksBar".into())),
+                (
+                    "WebBookmarkType".into(),
+                    PlistVal::Ascii("WebBookmarkTypeList".into()),
+                ),
+                (
+                    "Children".into(),
+                    PlistVal::Array(vec![PlistVal::Dict(vec![
+                        (
+                            "WebBookmarkType".into(),
+                            PlistVal::Ascii("WebBookmarkTypeLeaf".into()),
+                        ),
+                        (
+                            "WebBookmarkUUID".into(),
+                            PlistVal::Ascii("SAFARI-BM-0001".into()),
+                        ),
+                        (
+                            "URLString".into(),
+                            PlistVal::Ascii("https://example.org/safari-guide".into()),
+                        ),
+                        (
+                            "URIDictionary".into(),
+                            PlistVal::Dict(vec![(
+                                "title".into(),
+                                PlistVal::Ascii("Safari Guide".into()),
+                            )]),
+                        ),
+                    ])]),
+                ),
+            ])]),
+        ),
     ]);
     write_file_deterministic(&saf_dir.join("Bookmarks.plist"), &encode_bplist(&bm_plist))?;
 
     let hist_plist = PlistVal::Dict(vec![
         ("WebHistoryFileVersion".into(), PlistVal::Int(1)),
-        ("WebHistoryDates".into(), PlistVal::Array(vec![PlistVal::Dict(vec![
-            (String::new(), PlistVal::Ascii("https://example.org/safari-guide".into())),
-            ("title".into(), PlistVal::Ascii("Safari Guide".into())),
-            ("visitCount".into(), PlistVal::Int(2)),
-            ("lastVisitedDate".into(), PlistVal::Date(FIXED_CF_TIME)),
-        ])])),
+        (
+            "WebHistoryDates".into(),
+            PlistVal::Array(vec![PlistVal::Dict(vec![
+                (
+                    String::new(),
+                    PlistVal::Ascii("https://example.org/safari-guide".into()),
+                ),
+                ("title".into(), PlistVal::Ascii("Safari Guide".into())),
+                ("visitCount".into(), PlistVal::Int(2)),
+                ("lastVisitedDate".into(), PlistVal::Date(FIXED_CF_TIME)),
+            ])]),
+        ),
     ]);
     write_file_deterministic(&saf_dir.join("History.plist"), &encode_bplist(&hist_plist))?;
 
     let saf_resp_bplist = encode_bplist(&PlistVal::Dict(vec![
-        ("URL".into(), PlistVal::Ascii("https://example.org/safari.html".into())),
+        (
+            "URL".into(),
+            PlistVal::Ascii("https://example.org/safari.html".into()),
+        ),
         ("StatusCode".into(), PlistVal::Int(200)),
-        ("Headers".into(), PlistVal::Dict(vec![
-            ("Content-Type".into(), PlistVal::Ascii("text/html".into())),
-            ("Server".into(), PlistVal::Ascii("guap-safari-test".into())),
-        ])),
+        (
+            "Headers".into(),
+            PlistVal::Dict(vec![
+                ("Content-Type".into(), PlistVal::Ascii("text/html".into())),
+                ("Server".into(), PlistVal::Ascii("guap-safari-test".into())),
+            ]),
+        ),
     ]));
     {
         let conn = Connection::open(saf_dir.join("Cache.db"))?;
@@ -477,8 +545,14 @@ pub fn generate_browser_dir(browser_dir: &Path) -> Result<()> {
              CREATE TABLE cfurl_cache_blob_data (entry_ID INTEGER PRIMARY KEY, response_object BLOB, request_object BLOB, proto_props BLOB, user_info BLOB);",
         )?;
         conn.execute("INSERT INTO cfurl_cache_response VALUES (1, 0, 12345, 0, 'https://example.org/safari.html', '2026-11-22 14:30:00 +0000', '')", [])?;
-        conn.execute("INSERT INTO cfurl_cache_receiver_data VALUES (1, 0, ?1)", [&b"<html><body>Safari Cache</body></html>"[..]])?;
-        conn.execute("INSERT INTO cfurl_cache_blob_data VALUES (1, ?1, NULL, NULL, NULL)", [&saf_resp_bplist[..]])?;
+        conn.execute(
+            "INSERT INTO cfurl_cache_receiver_data VALUES (1, 0, ?1)",
+            [&b"<html><body>Safari Cache</body></html>"[..]],
+        )?;
+        conn.execute(
+            "INSERT INTO cfurl_cache_blob_data VALUES (1, ?1, NULL, NULL, NULL)",
+            [&saf_resp_bplist[..]],
+        )?;
     }
 
     {
@@ -500,7 +574,10 @@ pub fn generate_browser_dir(browser_dir: &Path) -> Result<()> {
     let (dcache, opr_html) = build_opera_presto_dcache();
     write_file_deterministic(&opera_dir.join("opcache/dcache4.url"), &dcache)?;
     write_file_deterministic(&opera_dir.join("opcache/opr00001.tmp"), &opr_html)?;
-    write_file_deterministic(&opera_dir.join("Cache/Cache_Data/1122334455667788_0"), &build_chromium_simple_cache_entry())?;
+    write_file_deterministic(
+        &opera_dir.join("Cache/Cache_Data/1122334455667788_0"),
+        &build_chromium_simple_cache_entry(),
+    )?;
 
     Ok(())
 }
@@ -510,8 +587,14 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
     let mut count = 0usize;
 
     let jpg = std::fs::read(browser_dir.join("media/sample_exif.jpg"))?;
-    ensure!(jpg.starts_with(&[0xFF, 0xD8, 0xFF, 0xE1]) && jpg.ends_with(&[0xFF, 0xD9]), "bad sample_exif.jpg");
-    ensure!(&jpg[6..12] == b"Exif\0\0" && &jpg[12..16] == b"II*\0", "missing Exif TIFF header");
+    ensure!(
+        jpg.starts_with(&[0xFF, 0xD8, 0xFF, 0xE1]) && jpg.ends_with(&[0xFF, 0xD9]),
+        "bad sample_exif.jpg"
+    );
+    ensure!(
+        &jpg[6..12] == b"Exif\0\0" && &jpg[12..16] == b"II*\0",
+        "missing Exif TIFF header"
+    );
     count += 1;
     details.push("browser/media/sample_exif.jpg: EXIF APP1 + II*\\0 verified".into());
 
@@ -521,13 +604,25 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
         let mut boxes = Vec::new();
         while off < mp4.len() {
             let blen = read_u32_be(&mp4, off)? as usize;
-            ensure!(blen >= 8 && off + blen <= mp4.len(), "{}: bad box len", mname);
+            ensure!(
+                blen >= 8 && off + blen <= mp4.len(),
+                "{}: bad box len",
+                mname
+            );
             boxes.push(String::from_utf8_lossy(&mp4[off + 4..off + 8]).to_string());
             off += blen;
         }
-        ensure!(boxes.len() == 3 && boxes[1] == "moof" && boxes[2] == "mdat", "{}: bad MP4 boxes {:?}", mname, boxes);
+        ensure!(
+            boxes.len() == 3 && boxes[1] == "moof" && boxes[2] == "mdat",
+            "{}: bad MP4 boxes {:?}",
+            mname,
+            boxes
+        );
         count += 1;
-        details.push(format!("browser/media/{}: boxes {:?} verified", mname, boxes));
+        details.push(format!(
+            "browser/media/{}: boxes {:?} verified",
+            mname, boxes
+        ));
     }
 
     let fx_dir = browser_dir.join("firefox/profile_default");
@@ -537,11 +632,18 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
         let fname = sha1_hex_upper(k.as_bytes());
         let buf = std::fs::read(fx_dir.join("cache2/entries").join(&fname))?;
         let p_len = read_u32_be(&buf, buf.len() - 4)? as usize;
-        ensure!(buf[..p_len].starts_with(prefix), "cache2 payload mismatch for {}", k);
+        ensure!(
+            buf[..p_len].starts_with(prefix),
+            "cache2 payload mismatch for {}",
+            k
+        );
         let hdr_off = p_len + 2;
         ensure!(read_u32_be(&buf, hdr_off)? == 3, "cache2 mVersion != 3");
         let key_off = hdr_off + 32;
-        ensure!(&buf[key_off..key_off + k.len()] == k.as_bytes(), "cache2 key mismatch");
+        ensure!(
+            &buf[key_off..key_off + k.len()] == k.as_bytes(),
+            "cache2 key mismatch"
+        );
         count += 1;
     }
     details.push("browser/firefox/cache2: 2 entries verified".into());
@@ -549,7 +651,11 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
     for (db_name, sql, min_rows) in [
         ("places.sqlite", "SELECT COUNT(*) FROM moz_places", 3i64),
         ("cookies.sqlite", "SELECT COUNT(*) FROM moz_cookies", 2i64),
-        ("formhistory.sqlite", "SELECT COUNT(*) FROM moz_formhistory", 2i64),
+        (
+            "formhistory.sqlite",
+            "SELECT COUNT(*) FROM moz_formhistory",
+            2i64,
+        ),
     ] {
         let conn = Connection::open(fx_dir.join(db_name))?;
         let integ: String = conn.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
@@ -562,10 +668,20 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
 
     for jname in ["addons.json", "extensions.json"] {
         let v: serde_json::Value = serde_json::from_slice(&std::fs::read(fx_dir.join(jname))?)?;
-        ensure!(v["addons"].as_array().map(|a| !a.is_empty()).unwrap_or(false), "empty {}", jname);
+        ensure!(
+            v["addons"]
+                .as_array()
+                .map(|a| !a.is_empty())
+                .unwrap_or(false),
+            "empty {}",
+            jname
+        );
         count += 1;
     }
-    for lzname in ["sessionstore.jsonlz4", "bookmarkbackups/bookmarks-2026-11-22.jsonlz4"] {
+    for lzname in [
+        "sessionstore.jsonlz4",
+        "bookmarkbackups/bookmarks-2026-11-22.jsonlz4",
+    ] {
         let raw = decode_mozlz4(&std::fs::read(fx_dir.join(lzname))?)?;
         let _: serde_json::Value = serde_json::from_slice(&raw)?;
         count += 1;
@@ -575,14 +691,20 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
     let saf_dir = browser_dir.join("safari");
     for pname in ["Bookmarks.plist", "History.plist"] {
         let b = std::fs::read(saf_dir.join(pname))?;
-        ensure!(b.starts_with(b"bplist00") && b.len() > 40, "{}: bad bplist", pname);
+        ensure!(
+            b.starts_with(b"bplist00") && b.len() > 40,
+            "{}: bad bplist",
+            pname
+        );
         let off_tbl = u64::from_be_bytes(b[b.len() - 8..].try_into()?) as usize;
         ensure!(off_tbl < b.len() - 32, "{}: bad bplist trailer", pname);
         count += 1;
     }
     {
         let c1 = Connection::open(saf_dir.join("Cache.db"))?;
-        let n1: i64 = c1.query_row("SELECT COUNT(*) FROM cfurl_cache_response", [], |r| r.get(0))?;
+        let n1: i64 = c1.query_row("SELECT COUNT(*) FROM cfurl_cache_response", [], |r| {
+            r.get(0)
+        })?;
         ensure!(n1 >= 1, "Safari Cache.db empty");
         count += 1;
         let c2 = Connection::open(saf_dir.join("History.db"))?;
@@ -593,11 +715,17 @@ pub fn verify_browser_dir(browser_dir: &Path) -> Result<(usize, Vec<String>)> {
     details.push("browser/safari: plists + Cache.db + History.db verified".into());
 
     let dcache = std::fs::read(browser_dir.join("opera/opcache/dcache4.url"))?;
-    ensure!(read_u32_be(&dcache, 0)? == 0x1000 && dcache[12] == 0x01, "bad dcache4.url");
+    ensure!(
+        read_u32_be(&dcache, 0)? == 0x1000 && dcache[12] == 0x01,
+        "bad dcache4.url"
+    );
     let _ = read_u16_be(&dcache, 13)?;
     let _ = std::fs::read(browser_dir.join("opera/opcache/opr00001.tmp"))?;
     let sc = std::fs::read(browser_dir.join("opera/Cache/Cache_Data/1122334455667788_0"))?;
-    ensure!(sc.starts_with(&0xFCFB_6D1B_A772_5C30u64.to_le_bytes()), "bad Opera Simple Cache");
+    ensure!(
+        sc.starts_with(&0xFCFB_6D1B_A772_5C30u64.to_le_bytes()),
+        "bad Opera Simple Cache"
+    );
     count += 3;
     details.push("browser/opera: dcache4.url + opr00001.tmp + SimpleCache verified".into());
 

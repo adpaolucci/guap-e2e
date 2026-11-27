@@ -571,7 +571,10 @@ impl RustAstIndex {
                 || lower_name.contains("_km_")
                 || (raw_fn.name == "build"
                     && raw_fn.ret_type_str.as_deref() == Some("Option<Self>")
-                    && body_visitor.callees.iter().any(|c| c == "analyze_cross_cell_segment"))
+                    && body_visitor
+                        .callees
+                        .iter()
+                        .any(|c| c == "analyze_cross_cell_segment"))
                 || matches!(
                     raw_fn.name.as_str(),
                     "contains_block_html_tag"
@@ -668,7 +671,11 @@ impl RustAstIndex {
     }
 
     pub fn abs_byte_from_line_offset(&self, line_idx: usize, col_byte: usize) -> usize {
-        let base = self.line_starts.get(line_idx).copied().unwrap_or(self.src_len);
+        let base = self
+            .line_starts
+            .get(line_idx)
+            .copied()
+            .unwrap_or(self.src_len);
         (base + col_byte).min(self.src_len)
     }
 
@@ -798,7 +805,9 @@ impl RustAstIndex {
             .collect();
         let mut verified_validators: HashSet<String> = seed_cross_crate
             .iter()
-            .filter(|n| n.starts_with("assert_r4_clean_") || *n == "verify_html_document_or_fragment")
+            .filter(|n| {
+                n.starts_with("assert_r4_clean_") || *n == "verify_html_document_or_fragment"
+            })
             .cloned()
             .collect();
         let mut verified_tag_helpers: HashSet<String> = HashSet::new();
@@ -827,16 +836,17 @@ impl RustAstIndex {
         }
 
         let memo_struct_safe = !self.structs.iter().any(|s| {
-            s.name == "JsonMarkerMemo"
-                && s.fields.iter().any(|ft| match ft {
-                    SimpleType::PrimitiveSafe | SimpleType::ByteVec => false,
-                    SimpleType::Named(n) => n != "JsonContainerMemo",
-                    SimpleType::Option(inner) => !matches!(
+            s.name == "JsonMarkerMemo" && s.fields.iter().any(|ft| match ft {
+                SimpleType::PrimitiveSafe | SimpleType::ByteVec => false,
+                SimpleType::Named(n) => n != "JsonContainerMemo",
+                SimpleType::Option(inner) => {
+                    !matches!(
                         inner.as_ref(),
                         SimpleType::PrimitiveSafe | SimpleType::ByteVec
-                    ) && !matches!(inner.as_ref(), SimpleType::Named(n) if n == "JsonContainerMemo"),
-                    _ => true,
-                })
+                    ) && !matches!(inner.as_ref(), SimpleType::Named(n) if n == "JsonContainerMemo")
+                }
+                _ => true,
+            })
         });
 
         let safe_memo_helpers: HashSet<String> = self
@@ -850,7 +860,10 @@ impl RustAstIndex {
                     && !fn_i.has_thread_spawn
                     && !fn_i.has_global_state_sink
                     && !has_dangerous_wlan_fn_verb(&fn_i.name, true)
-                    && (fn_i.mut_param_types.iter().any(|t| t == "&mutJsonMarkerMemo")
+                    && (fn_i
+                        .mut_param_types
+                        .iter()
+                        .any(|t| t == "&mutJsonMarkerMemo")
                         || fn_i.name.ends_with("_memo"))
                     && fn_i
                         .mut_param_types
@@ -976,7 +989,12 @@ impl RustAstIndex {
                         let primary_ok = block_is_genuine_primary_sanitizer(block, f, &sets);
                         let wrap_ok = !primary_ok
                             && (any_primary || self.file_has_verified_primary)
-                            && block_is_valid_sanitizer_wrapper(block, f, &verified_sanitizers, &verified_validators);
+                            && block_is_valid_sanitizer_wrapper(
+                                block,
+                                f,
+                                &verified_sanitizers,
+                                &verified_validators,
+                            );
                         if !f.has_exec_sink
                             && !f.has_io_sink
                             && !has_dangerous_wlan_fn_verb(&f.name, false)
@@ -996,7 +1014,14 @@ impl RustAstIndex {
                         }
                     }
                     Some(WlanHelperKind::Validator)
-                        if is_genuine_validator_fn(f, block, has_unsafe_flow, any_validator || self.file_has_verified_validator, &sets, mask_json_span_safe) =>
+                        if is_genuine_validator_fn(
+                            f,
+                            block,
+                            has_unsafe_flow,
+                            any_validator || self.file_has_verified_validator,
+                            &sets,
+                            mask_json_span_safe,
+                        ) =>
                     {
                         if !validator_verified[i] {
                             validator_verified[i] = true;
@@ -1111,9 +1136,10 @@ impl RustAstIndex {
                 {
                     continue;
                 }
-                let calls_unverified_tag_helper = f.callees.iter().any(|c| {
-                    all_tag_helpers.contains(c) && !verified_tag_helpers.contains(c)
-                });
+                let calls_unverified_tag_helper = f
+                    .callees
+                    .iter()
+                    .any(|c| all_tag_helpers.contains(c) && !verified_tag_helpers.contains(c));
                 if calls_unverified_tag_helper {
                     continue;
                 }
@@ -1138,7 +1164,12 @@ impl RustAstIndex {
                     || (!has_unsafe_flow
                         && self.file_has_verified_primary
                         && (json_mask_helper_ok
-                            || block_is_valid_sanitizer_wrapper(block, f, &known_sanitizers, &verified_validators)))
+                            || block_is_valid_sanitizer_wrapper(
+                                block,
+                                f,
+                                &known_sanitizers,
+                                &verified_validators,
+                            )))
                 {
                     wrapper_verified[i] = true;
                     verified_sanitizers.insert(f.name.clone());
@@ -1340,7 +1371,12 @@ impl RustAstIndex {
         false
     }
 
-    pub fn fn_is_genuine_keymaterial_test(&self, f: &FnInfo, lit_start: usize, lit_end: usize) -> bool {
+    pub fn fn_is_genuine_keymaterial_test(
+        &self,
+        f: &FnInfo,
+        lit_start: usize,
+        lit_end: usize,
+    ) -> bool {
         let fn_has_check = f.callees.iter().any(|c| {
             c.starts_with("sanitize_")
                 || c.starts_with("redact_")
@@ -1382,9 +1418,11 @@ impl RustAstIndex {
                     .any(|&(pos, fid)| fid == Some(f.id) && pos > b.decl_span.1)
             });
         }
-        if let Some((_, rsp, base)) = self.assign_targets.iter().find(|(fid, rsp, _)| {
-            *fid == f.id && lit_start >= rsp.0 && lit_end <= rsp.1
-        }) {
+        if let Some((_, rsp, base)) = self
+            .assign_targets
+            .iter()
+            .find(|(fid, rsp, _)| *fid == f.id && lit_start >= rsp.0 && lit_end <= rsp.1)
+        {
             if base.starts_with('_') {
                 return false;
             }
@@ -1401,9 +1439,11 @@ impl RustAstIndex {
         lit_start: usize,
         lit_end: usize,
     ) -> bool {
-        let Some(b) = self.bindings.iter().find(|b| {
-            b.fn_id.is_none() && lit_start >= b.init_span.0 && lit_end <= b.init_span.1
-        }) else {
+        let Some(b) = self
+            .bindings
+            .iter()
+            .find(|b| b.fn_id.is_none() && lit_start >= b.init_span.0 && lit_end <= b.init_span.1)
+        else {
             return false;
         };
         if b.ident.starts_with('_') {
@@ -1448,10 +1488,7 @@ impl RustAstIndex {
         rule_id: &str,
     ) -> bool {
         let in_neg_assert_macro = self.macro_calls.iter().any(|m| {
-            m.is_negative_assert
-                && !m.has_sink
-                && lit_start >= m.span.0
-                && lit_end <= m.span.1
+            m.is_negative_assert && !m.has_sink && lit_start >= m.span.0 && lit_end <= m.span.1
         });
         if in_neg_assert_macro {
             if rule_id == "R4-API-CRED-05" {
@@ -1549,11 +1586,8 @@ impl RustAstIndex {
             return false;
         };
 
-        let mut tracked: Vec<(String, Option<usize>, (usize, usize))> = vec![(
-            root_b.ident.clone(),
-            root_b.fn_id,
-            root_b.decl_span,
-        )];
+        let mut tracked: Vec<(String, Option<usize>, (usize, usize))> =
+            vec![(root_b.ident.clone(), root_b.fn_id, root_b.decl_span)];
         let mut alias_changed = true;
         while alias_changed {
             alias_changed = false;
@@ -1619,11 +1653,8 @@ impl RustAstIndex {
                 if f.has_exec_sink || f.has_io_sink {
                     return false;
                 }
-                let fn_stmts: Vec<&StmtEntry> = self
-                    .stmts
-                    .iter()
-                    .filter(|s| s.fn_id == Some(fid))
-                    .collect();
+                let fn_stmts: Vec<&StmtEntry> =
+                    self.stmts.iter().filter(|s| s.fn_id == Some(fid)).collect();
                 let test_asserts_violations_for_fn = in_test
                     && self.in_test_context(f.span.0)
                     && self.fns.iter().any(|tf| {
@@ -1634,7 +1665,9 @@ impl RustAstIndex {
                             && self.stmts.iter().any(|ts| {
                                 ts.fn_id == Some(tf.id)
                                     && (ts.text_compact.contains("violations.is_empty()")
-                                        || ts.text_compact.contains("assert!(violations.is_empty()")
+                                        || ts
+                                            .text_compact
+                                            .contains("assert!(violations.is_empty()")
                                         || ts.text_compact.contains("assert_eq!(violations"))
                             })
                     });
@@ -1660,9 +1693,10 @@ impl RustAstIndex {
                                 && self.in_test_context(hf.span.0)
                                 && !hf.has_exec_sink
                                 && !hf.has_io_sink
-                                && self.stmts.iter().any(|hs| {
-                                    hs.fn_id == Some(hf.id) && hs.is_rejection_stmt
-                                })
+                                && self
+                                    .stmts
+                                    .iter()
+                                    .any(|hs| hs.fn_id == Some(hf.id) && hs.is_rejection_stmt)
                         })
                     }));
                 if fn_has_rejection {
@@ -1806,7 +1840,13 @@ fn eval_const_str_expr(e: &Expr) -> Option<String> {
         Expr::Paren(p) => eval_const_str_expr(&p.expr),
         Expr::Group(g) => eval_const_str_expr(&g.expr),
         Expr::Macro(em) => {
-            if em.mac.path.segments.last().is_some_and(|s| s.ident == "concat") {
+            if em
+                .mac
+                .path
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "concat")
+            {
                 eval_concat_tokens(&em.mac.tokens)
             } else {
                 None
@@ -1839,9 +1879,16 @@ impl<'b, 'a> FileCollector<'b, 'a> {
         attrs.first().map_or(fallback, |a| a.pound_token.span)
     }
 
-    fn record_test_attrs(&mut self, attrs: &[Attribute], sp_start: Span, sp_end: Span, allow_span: bool) {
+    fn record_test_attrs(
+        &mut self,
+        attrs: &[Attribute],
+        sp_start: Span,
+        sp_end: Span,
+        allow_span: bool,
+    ) {
         if allow_span && attrs_indicate_test(attrs) {
-            self.test_spans.push(self.span_pair(self.attr_start(attrs, sp_start), sp_end));
+            self.test_spans
+                .push(self.span_pair(self.attr_start(attrs, sp_start), sp_end));
         }
     }
 
@@ -1885,8 +1932,15 @@ impl<'b, 'a> FileCollector<'b, 'a> {
             ReturnType::Default => None,
             ReturnType::Type(_, ty) => Some(compact_type_str(ty)),
         };
-        let span = self.span_pair(self.attr_start(attrs, sig.fn_token.span), block.brace_token.span.close());
-        let header_end = lc_to_byte_in_str(self.content, self.line_starts, block.brace_token.span.open().start());
+        let span = self.span_pair(
+            self.attr_start(attrs, sig.fn_token.span),
+            block.brace_token.span.close(),
+        );
+        let header_end = lc_to_byte_in_str(
+            self.content,
+            self.line_starts,
+            block.brace_token.span.open().start(),
+        );
         self.raw_fns.push(RawFnEntry {
             name,
             is_method,
@@ -1970,20 +2024,36 @@ impl<'b, 'a> Visit<'a> for FileCollector<'b, 'a> {
                 visit::visit_item_mod(self, m);
             }
             Item::Fn(f) => {
-                self.record_test_attrs(&f.attrs, f.sig.fn_token.span, f.block.brace_token.span.close(), true);
+                self.record_test_attrs(
+                    &f.attrs,
+                    f.sig.fn_token.span,
+                    f.block.brace_token.span.close(),
+                    true,
+                );
                 self.record_fn(f.sig.ident.to_string(), false, &f.attrs, &f.sig, &f.block);
                 visit::visit_item_fn(self, f);
             }
             Item::Struct(s) => {
                 let end_sp = match &s.fields {
                     Fields::Named(n) => n.brace_token.span.close(),
-                    Fields::Unnamed(u) => s.semi_token.as_ref().map_or(u.paren_token.span.close(), |sm| sm.span),
+                    Fields::Unnamed(u) => s
+                        .semi_token
+                        .as_ref()
+                        .map_or(u.paren_token.span.close(), |sm| sm.span),
                     Fields::Unit => s.semi_token.as_ref().map_or(s.ident.span(), |sm| sm.span),
                 };
                 self.record_test_attrs(&s.attrs, s.struct_token.span, end_sp, true);
                 let fields = match &s.fields {
-                    Fields::Named(n) => n.named.iter().map(|f| SimpleType::from_syn(&f.ty)).collect(),
-                    Fields::Unnamed(u) => u.unnamed.iter().map(|f| SimpleType::from_syn(&f.ty)).collect(),
+                    Fields::Named(n) => n
+                        .named
+                        .iter()
+                        .map(|f| SimpleType::from_syn(&f.ty))
+                        .collect(),
+                    Fields::Unnamed(u) => u
+                        .unnamed
+                        .iter()
+                        .map(|f| SimpleType::from_syn(&f.ty))
+                        .collect(),
                     Fields::Unit => Vec::new(),
                 };
                 self.raw_structs.push(StructInfo {
@@ -1994,11 +2064,21 @@ impl<'b, 'a> Visit<'a> for FileCollector<'b, 'a> {
                 });
             }
             Item::Enum(e) => {
-                self.record_test_attrs(&e.attrs, e.enum_token.span, e.brace_token.span.close(), true);
+                self.record_test_attrs(
+                    &e.attrs,
+                    e.enum_token.span,
+                    e.brace_token.span.close(),
+                    true,
+                );
                 self.enums.push(e);
             }
             Item::Impl(imp) => {
-                self.record_test_attrs(&imp.attrs, imp.impl_token.span, imp.brace_token.span.close(), true);
+                self.record_test_attrs(
+                    &imp.attrs,
+                    imp.impl_token.span,
+                    imp.brace_token.span.close(),
+                    true,
+                );
                 let self_ty_name = last_path_ident(&imp.self_ty);
                 for ii in &imp.items {
                     if let syn::ImplItem::Fn(mf) = ii {
@@ -2010,14 +2090,30 @@ impl<'b, 'a> Visit<'a> for FileCollector<'b, 'a> {
                         {
                             self.impl_has_leaking_method.insert(st_name.clone());
                         }
-                        self.record_test_attrs(&mf.attrs, mf.sig.fn_token.span, mf.block.brace_token.span.close(), true);
-                        self.record_fn(mf.sig.ident.to_string(), true, &mf.attrs, &mf.sig, &mf.block);
+                        self.record_test_attrs(
+                            &mf.attrs,
+                            mf.sig.fn_token.span,
+                            mf.block.brace_token.span.close(),
+                            true,
+                        );
+                        self.record_fn(
+                            mf.sig.ident.to_string(),
+                            true,
+                            &mf.attrs,
+                            &mf.sig,
+                            &mf.block,
+                        );
                         visit::visit_impl_item_fn(self, mf);
                     }
                 }
             }
             Item::Trait(tr) => {
-                self.record_test_attrs(&tr.attrs, tr.trait_token.span, tr.brace_token.span.close(), true);
+                self.record_test_attrs(
+                    &tr.attrs,
+                    tr.trait_token.span,
+                    tr.brace_token.span.close(),
+                    true,
+                );
                 for ti in &tr.items {
                     if let syn::TraitItem::Fn(tf) = ti
                         && let Some(ref blk) = tf.default
@@ -2051,7 +2147,12 @@ impl<'b, 'a> Visit<'a> for FileCollector<'b, 'a> {
                     },
                     |s| s.span,
                 );
-                let start_sp = m.mac.path.segments.first().map_or(end_sp, |s| s.ident.span());
+                let start_sp = m
+                    .mac
+                    .path
+                    .segments
+                    .first()
+                    .map_or(end_sp, |s| s.ident.span());
                 self.record_test_attrs(&m.attrs, start_sp, end_sp, true);
                 if m.mac.path.is_ident("macro_rules")
                     && let Some(id) = &m.ident
@@ -2088,13 +2189,23 @@ impl<'b, 'a> Visit<'a> for FileCollector<'b, 'a> {
     }
 
     fn visit_item_fn(&mut self, i: &'a ItemFn) {
-        self.record_test_attrs(&i.attrs, i.sig.fn_token.span, i.block.brace_token.span.close(), true);
+        self.record_test_attrs(
+            &i.attrs,
+            i.sig.fn_token.span,
+            i.block.brace_token.span.close(),
+            true,
+        );
         self.record_fn(i.sig.ident.to_string(), false, &i.attrs, &i.sig, &i.block);
         visit::visit_item_fn(self, i);
     }
 
     fn visit_impl_item_fn(&mut self, i: &'a ImplItemFn) {
-        self.record_test_attrs(&i.attrs, i.sig.fn_token.span, i.block.brace_token.span.close(), true);
+        self.record_test_attrs(
+            &i.attrs,
+            i.sig.fn_token.span,
+            i.block.brace_token.span.close(),
+            true,
+        );
         self.record_fn(i.sig.ident.to_string(), true, &i.attrs, &i.sig, &i.block);
         visit::visit_impl_item_fn(self, i);
     }
@@ -2124,12 +2235,23 @@ impl<'b, 'a> Visit<'a> for FileCollector<'b, 'a> {
     fn visit_item_struct(&mut self, i: &'a ItemStruct) {
         let end_sp = match &i.fields {
             Fields::Named(n) => n.brace_token.span.close(),
-            Fields::Unnamed(u) => i.semi_token.as_ref().map_or(u.paren_token.span.close(), |sm| sm.span),
+            Fields::Unnamed(u) => i
+                .semi_token
+                .as_ref()
+                .map_or(u.paren_token.span.close(), |sm| sm.span),
             Fields::Unit => i.semi_token.as_ref().map_or(i.ident.span(), |sm| sm.span),
         };
         let fields = match &i.fields {
-            Fields::Named(n) => n.named.iter().map(|f| SimpleType::from_syn(&f.ty)).collect(),
-            Fields::Unnamed(u) => u.unnamed.iter().map(|f| SimpleType::from_syn(&f.ty)).collect(),
+            Fields::Named(n) => n
+                .named
+                .iter()
+                .map(|f| SimpleType::from_syn(&f.ty))
+                .collect(),
+            Fields::Unnamed(u) => u
+                .unnamed
+                .iter()
+                .map(|f| SimpleType::from_syn(&f.ty))
+                .collect(),
             Fields::Unit => Vec::new(),
         };
         self.raw_structs.push(StructInfo {
@@ -2218,7 +2340,9 @@ fn quote_type_compact(ty: &Type) -> String {
                                 out.push('\'');
                                 out.push_str(&lt.ident.to_string());
                             }
-                            GenericArgument::Type(inner) => out.push_str(&quote_type_compact(inner)),
+                            GenericArgument::Type(inner) => {
+                                out.push_str(&quote_type_compact(inner))
+                            }
                             _ => out.push('_'),
                         }
                     }
@@ -2249,7 +2373,11 @@ fn quote_type_compact(ty: &Type) -> String {
         Type::Slice(ts) => format!("[{}]", quote_type_compact(&ts.elem)),
         Type::Array(ta) => format!("[{};_]", quote_type_compact(&ta.elem)),
         Type::Ptr(tp) => {
-            let mut_s = if matches!(tp.mutability, syn::PointerMutability::Mut(_)) { "*mut" } else { "*const" };
+            let mut_s = if matches!(tp.mutability, syn::PointerMutability::Mut(_)) {
+                "*mut"
+            } else {
+                "*const"
+            };
             format!("{mut_s}{}", quote_type_compact(&tp.elem))
         }
         _ => "Other".to_string(),
@@ -2286,7 +2414,13 @@ fn scan_tokens_for_sinks(
     let flat = flatten_tokens(ts);
     let mut flags = SinkFlags::default();
     let mut invoked_macros = Vec::new();
-    scan_flat_toks(&flat, command_types, use_aliases, &mut flags, &mut invoked_macros);
+    scan_flat_toks(
+        &flat,
+        command_types,
+        use_aliases,
+        &mut flags,
+        &mut invoked_macros,
+    );
     (flags, invoked_macros)
 }
 
@@ -2340,7 +2474,10 @@ fn scan_flat_toks(
                 if matches!(id.as_str(), "spawn" | "output" | "status")
                     && i >= 1
                     && matches!(toks.get(i - 1), Some(FlatTok::Punct('.')))
-                    && matches!(toks.get(i + 1), Some(FlatTok::Group(Delimiter::Parenthesis, _)))
+                    && matches!(
+                        toks.get(i + 1),
+                        Some(FlatTok::Group(Delimiter::Parenthesis, _))
+                    )
                 {
                     let is_thread_builder = i >= 4
                         && matches!(toks.get(i - 4), Some(FlatTok::Ident(b)) if b == "Builder");
@@ -2393,17 +2530,25 @@ fn scan_flat_toks(
                     && matches!(toks.get(i + 1), Some(FlatTok::Punct(':')))
                     && matches!(toks.get(i + 2), Some(FlatTok::Punct(':')))
                     && let Some(FlatTok::Ident(m)) = toks.get(i + 3)
-                    && matches!(m.as_str(), "write" | "write_all" | "write_fmt" | "write_vectored")
+                    && matches!(
+                        m.as_str(),
+                        "write" | "write_all" | "write_fmt" | "write_vectored"
+                    )
                 {
                     flags.io = true;
                 }
                 if matches!(prev_resolved.as_str(), "stdout" | "stderr")
-                    && matches!(toks.get(i + 1), Some(FlatTok::Group(Delimiter::Parenthesis, _)))
+                    && matches!(
+                        toks.get(i + 1),
+                        Some(FlatTok::Group(Delimiter::Parenthesis, _))
+                    )
                 {
                     flags.io = true;
                 }
-                if matches!(id.as_str(), "write" | "write_all" | "write_fmt" | "write_vectored")
-                    && i >= 1
+                if matches!(
+                    id.as_str(),
+                    "write" | "write_all" | "write_fmt" | "write_vectored"
+                ) && i >= 1
                     && matches!(toks.get(i - 1), Some(FlatTok::Punct('.')))
                 {
                     flags.io = true;
@@ -2433,8 +2578,16 @@ impl<'a> Visit<'a> for TopBindingVisitor<'a> {
     fn visit_item_const(&mut self, c: &'a syn::ItemConst) {
         let ident = c.ident.to_string();
         let decl_span = (
-            lc_to_byte_in_str(self.ctx.content, self.ctx.line_starts, c.const_token.span.start()),
-            lc_to_byte_in_str(self.ctx.content, self.ctx.line_starts, c.semi_token.span.end()),
+            lc_to_byte_in_str(
+                self.ctx.content,
+                self.ctx.line_starts,
+                c.const_token.span.start(),
+            ),
+            lc_to_byte_in_str(
+                self.ctx.content,
+                self.ctx.line_starts,
+                c.semi_token.span.end(),
+            ),
         );
         let init_span = self.ctx.expr_bytes(&c.expr);
         self.bindings.push(BindingInfo {
@@ -2452,8 +2605,16 @@ impl<'a> Visit<'a> for TopBindingVisitor<'a> {
     fn visit_item_static(&mut self, s: &'a syn::ItemStatic) {
         let ident = s.ident.to_string();
         let decl_span = (
-            lc_to_byte_in_str(self.ctx.content, self.ctx.line_starts, s.static_token.span.start()),
-            lc_to_byte_in_str(self.ctx.content, self.ctx.line_starts, s.semi_token.span.end()),
+            lc_to_byte_in_str(
+                self.ctx.content,
+                self.ctx.line_starts,
+                s.static_token.span.start(),
+            ),
+            lc_to_byte_in_str(
+                self.ctx.content,
+                self.ctx.line_starts,
+                s.semi_token.span.end(),
+            ),
         );
         let init_span = self.ctx.expr_bytes(&s.expr);
         self.bindings.push(BindingInfo {
@@ -2491,7 +2652,8 @@ impl<'a> Visit<'a> for TopBindingVisitor<'a> {
                     span: sp,
                     callee_name: callee_name.clone(),
                     is_empty_str_only: is_empty_str_expr(arg),
-                    has_return_or_block: matches!(arg, Expr::Block(_) | Expr::Return(_)) || expr_contains_return(arg),
+                    has_return_or_block: matches!(arg, Expr::Block(_) | Expr::Return(_))
+                        || expr_contains_return(arg),
                 });
             }
         }
@@ -2576,7 +2738,12 @@ impl<'a> FnBodyVisitor<'a> {
             || matches!(name.as_str(), "println" | "eprintln" | "print" | "dbg");
         let is_assert = matches!(
             name.as_str(),
-            "assert" | "assert_eq" | "assert_ne" | "debug_assert" | "debug_assert_eq" | "debug_assert_ne"
+            "assert"
+                | "assert_eq"
+                | "assert_ne"
+                | "debug_assert"
+                | "debug_assert_eq"
+                | "debug_assert_ne"
         );
         let is_negative_assert =
             is_assert && !has_sink && is_genuine_negative_assert_tokens(&mac.tokens, raw_text);
@@ -2647,7 +2814,10 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
     fn visit_stmt(&mut self, s: &'a Stmt) {
         let sp = self.ctx.stmt_bytes(s);
         let raw_text = self.ctx.content.get(sp.0..sp.1).unwrap_or("");
-        let compact: String = raw_text.chars().filter(|c| !c.is_ascii_whitespace()).collect();
+        let compact: String = raw_text
+            .chars()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
         let is_rej = stmt_is_rejection_expr(s, &compact);
         let is_rt_rej = expr_or_stmt_is_genuine_rejection(s, false);
         self.stmts.push(StmtEntry {
@@ -2808,7 +2978,10 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
                                 span: sp,
                                 callee_name: resolved_last.clone(),
                                 is_empty_str_only: is_empty_str_expr(arg),
-                                has_return_or_block: matches!(arg, Expr::Block(_) | Expr::Return(_)) || expr_contains_return(arg),
+                                has_return_or_block: matches!(
+                                    arg,
+                                    Expr::Block(_) | Expr::Return(_)
+                                ) || expr_contains_return(arg),
                             });
                         }
                     }
@@ -2821,8 +2994,8 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
                 if matches!(m.as_str(), "spawn" | "output" | "status") {
                     let recv_sp = self.ctx.expr_bytes(&mc.receiver);
                     let recv_txt = self.ctx.content.get(recv_sp.0..recv_sp.1).unwrap_or("");
-                    let is_thread_builder = recv_txt.contains("thread::Builder")
-                        || recv_txt.contains("std::thread");
+                    let is_thread_builder =
+                        recv_txt.contains("thread::Builder") || recv_txt.contains("std::thread");
                     if is_thread_builder {
                         self.has_thread_spawn = true;
                     } else {
@@ -2857,15 +3030,13 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
                 ) {
                     self.has_slice_or_split = true;
                 }
-                if matches!(m.as_str(), "store" | "swap" | "compare_exchange" | "compare_exchange_weak") {
+                if matches!(
+                    m.as_str(),
+                    "store" | "swap" | "compare_exchange" | "compare_exchange_weak"
+                ) {
                     self.has_global_state_sink = true;
                 }
-                if m == "get"
-                    && mc
-                        .args
-                        .first()
-                        .is_some_and(expr_is_range_or_slice_index)
-                {
+                if m == "get" && mc.args.first().is_some_and(expr_is_range_or_slice_index) {
                     self.has_slice_or_split = true;
                 }
                 if m == "collect" && receiver_has_chars_call(&mc.receiver) {
@@ -2878,7 +3049,8 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
                             span: sp,
                             callee_name: m.clone(),
                             is_empty_str_only: is_empty_str_expr(arg),
-                            has_return_or_block: matches!(arg, Expr::Block(_) | Expr::Return(_)) || expr_contains_return(arg),
+                            has_return_or_block: matches!(arg, Expr::Block(_) | Expr::Return(_))
+                                || expr_contains_return(arg),
                         });
                     }
                 }
@@ -2910,10 +3082,7 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
                     ) {
                         self.direct_io_sink = true;
                     }
-                    if s == "mpsc"
-                        || s == "Sender"
-                        || s == "SyncSender"
-                        || s.starts_with("Atomic")
+                    if s == "mpsc" || s == "Sender" || s == "SyncSender" || s.starts_with("Atomic")
                     {
                         self.has_global_state_sink = true;
                     }
@@ -2938,10 +3107,7 @@ impl<'a> Visit<'a> for FnBodyVisitor<'a> {
                 let mut idents = Vec::new();
                 collect_pat_idents(&fl.pat, &mut idents);
                 let init_span = self.ctx.expr_bytes(&fl.expr);
-                let decl_span = (
-                    self.ctx.span_bytes(fl.for_token.span).0,
-                    init_span.1,
-                );
+                let decl_span = (self.ctx.span_bytes(fl.for_token.span).0, init_span.1);
                 let is_arr = expr_is_array_or_vec(&fl.expr);
                 for ident in idents {
                     self.bindings.push(BindingInfo {
@@ -2990,12 +3156,7 @@ fn expr_is_array_or_vec(e: &Expr) -> bool {
     match e {
         Expr::Array(_) => true,
         Expr::Reference(r) => expr_is_array_or_vec(&r.expr),
-        Expr::Macro(m) => m
-            .mac
-            .path
-            .segments
-            .last()
-            .is_some_and(|s| s.ident == "vec"),
+        Expr::Macro(m) => m.mac.path.segments.last().is_some_and(|s| s.ident == "vec"),
         Expr::Paren(p) => expr_is_array_or_vec(&p.expr),
         _ => false,
     }
@@ -3064,8 +3225,10 @@ fn token_trees_have_rejection_signal(tts: &[TokenTree]) -> bool {
                 TokenTree::Ident(id) => {
                     let s = id.to_string();
                     let lower = s.to_ascii_lowercase();
-                    if matches!(lower.as_str(), "is_err" | "unwrap_err" | "expect_err" | "policydenied" | "policy_denied")
-                        || lower.starts_with("assert_r4_clean")
+                    if matches!(
+                        lower.as_str(),
+                        "is_err" | "unwrap_err" | "expect_err" | "policydenied" | "policy_denied"
+                    ) || lower.starts_with("assert_r4_clean")
                     {
                         return true;
                     }
@@ -3194,7 +3357,12 @@ fn expr_or_stmt_is_genuine_rejection(stmt: &Stmt, allow_assert_macros: bool) -> 
             } else if self.allow_assert_macros
                 && matches!(
                     name.as_str(),
-                    "assert" | "assert_eq" | "assert_ne" | "debug_assert" | "debug_assert_eq" | "debug_assert_ne"
+                    "assert"
+                        | "assert_eq"
+                        | "assert_ne"
+                        | "debug_assert"
+                        | "debug_assert_eq"
+                        | "debug_assert_ne"
                 )
             {
                 let is_eq = name.ends_with("_eq") || name.ends_with("_ne");
@@ -3224,7 +3392,12 @@ fn stmt_is_rejection_expr(stmt: &Stmt, _compact: &str) -> bool {
             .unwrap_or_default();
         if matches!(
             name.as_str(),
-            "assert" | "assert_eq" | "assert_ne" | "debug_assert" | "debug_assert_eq" | "debug_assert_ne"
+            "assert"
+                | "assert_eq"
+                | "assert_ne"
+                | "debug_assert"
+                | "debug_assert_eq"
+                | "debug_assert_ne"
         ) {
             let is_eq = name.ends_with("_eq") || name.ends_with("_ne");
             let expr_tts = assert_non_lit_tokens_before_msg(&sm.mac.tokens, is_eq);
@@ -3606,7 +3779,9 @@ fn is_safe_tag_helper_return(
     {
         return true;
     }
-    if let Some(inner) = ret.strip_prefix("Option<").and_then(|s| s.strip_suffix('>'))
+    if let Some(inner) = ret
+        .strip_prefix("Option<")
+        .and_then(|s| s.strip_suffix('>'))
         && verified_tag_structs.contains(inner)
     {
         return true;
@@ -3650,7 +3825,10 @@ fn expr_mentions_mut_param(e: &Expr, mut_params: &[String]) -> bool {
         && let Expr::Path(ep) = c.func.as_ref()
         && ep.path.segments.last().is_some_and(|s| s.ident == "Some")
     {
-        return c.args.iter().any(|a| expr_mentions_mut_param(a, mut_params));
+        return c
+            .args
+            .iter()
+            .any(|a| expr_mentions_mut_param(a, mut_params));
     }
     false
 }
@@ -3802,7 +3980,10 @@ fn block_is_safe_memo_helper(block: &Block, mut_param_names: &[String]) -> bool 
                     | "to_owned"
                     | "to_vec"
             ) && (expr_mentions_mut_param(&mc.receiver, self.mut_params)
-                || mc.args.iter().any(|a| expr_mentions_mut_param(a, self.mut_params)))
+                || mc
+                    .args
+                    .iter()
+                    .any(|a| expr_mentions_mut_param(a, self.mut_params)))
             {
                 self.bad = true;
             }
@@ -3897,11 +4078,20 @@ fn block_has_live_deserializer_cursor_loop(block: &Block) -> bool {
         }
         fn visit_expr_call(&mut self, call: &'a syn::ExprCall) {
             if let Expr::Path(ep) = call.func.as_ref() {
-                let segs: Vec<String> = ep.path.segments.iter().map(|s| s.ident.to_string()).collect();
+                let segs: Vec<String> = ep
+                    .path
+                    .segments
+                    .iter()
+                    .map(|s| s.ident.to_string())
+                    .collect();
                 if segs.ends_with(&["Deserializer".to_string(), "from_str".to_string()]) {
                     *self.has_live_deserializer = true;
                 }
-                if self.in_while && segs.last().is_some_and(|s| s == "sanitize_json_value_r4_inner") {
+                if self.in_while
+                    && segs
+                        .last()
+                        .is_some_and(|s| s == "sanitize_json_value_r4_inner")
+                {
                     *self.has_cursor_loop = true;
                 }
             }
@@ -3976,7 +4166,13 @@ fn block_mut_u8_only_safe_bitmask_or_fill(
             visit::visit_expr_reference(self, er);
         }
         fn visit_expr_assign(&mut self, ea: &'a syn::ExprAssign) {
-            if matches!(unwrap_parens(&ea.left), Expr::Unary(syn::ExprUnary { op: syn::UnOp::Deref(_), .. })) {
+            if matches!(
+                unwrap_parens(&ea.left),
+                Expr::Unary(syn::ExprUnary {
+                    op: syn::UnOp::Deref(_),
+                    ..
+                })
+            ) {
                 if !is_safe_fill_const_lit(&ea.right) {
                     self.bad = true;
                 }
@@ -4030,7 +4226,10 @@ fn block_mut_u8_only_safe_bitmask_or_fill(
                 let safe_span_push = self.own_fn_name == "mask_clean_km_at"
                     && m == "push"
                     && base == "recorded"
-                    && mc.args.first().is_some_and(|a| matches!(unwrap_parens(a), Expr::Tuple(_)));
+                    && mc
+                        .args
+                        .first()
+                        .is_some_and(|a| matches!(unwrap_parens(a), Expr::Tuple(_)));
                 if !safe_readonly && !safe_fill && !safe_span_push {
                     self.bad = true;
                 }
@@ -4098,13 +4297,15 @@ fn is_genuine_validator_fn(
             && f.ret_type_str.as_deref() == Some("Result<bool,ReportError>"))
         || (f.name == "assert_r4_clean_embedded_json_in_bytes_cow"
             && mask_json_span_safe
-            && f.mut_param_types.iter().all(|t| {
-                t == "&mutstd::borrow::Cow<'_,[u8]>" || t == "&mutCow<'_,[u8]>"
-            })
+            && f.mut_param_types
+                .iter()
+                .all(|t| t == "&mutstd::borrow::Cow<'_,[u8]>" || t == "&mutCow<'_,[u8]>")
             && f.ret_type_str.as_deref() == Some("Result<bool,ReportError>"))
         || ((f.name == "flush_html_text_buf" || f.name == "flush_html_text_buf_with_origin")
             && f.mut_param_types == ["&mutVec<u8>"]
-            && f.ret_type_str.as_deref().is_some_and(is_non_secret_error_result));
+            && f.ret_type_str
+                .as_deref()
+                .is_some_and(is_non_secret_error_result));
     if f.has_exec_sink
         || f.has_io_sink
         || f.has_thread_spawn
@@ -4483,7 +4684,8 @@ fn eval_const_bool(e: &Expr) -> Option<bool> {
                 if let (Some(a), Some(b)) = (eval_const_int(&eb.left), eval_const_int(&eb.right)) {
                     return Some(a == b);
                 }
-                if let (Some(a), Some(b)) = (eval_const_bool(&eb.left), eval_const_bool(&eb.right)) {
+                if let (Some(a), Some(b)) = (eval_const_bool(&eb.left), eval_const_bool(&eb.right))
+                {
                     return Some(a == b);
                 }
                 None
@@ -4492,7 +4694,8 @@ fn eval_const_bool(e: &Expr) -> Option<bool> {
                 if let (Some(a), Some(b)) = (eval_const_int(&eb.left), eval_const_int(&eb.right)) {
                     return Some(a != b);
                 }
-                if let (Some(a), Some(b)) = (eval_const_bool(&eb.left), eval_const_bool(&eb.right)) {
+                if let (Some(a), Some(b)) = (eval_const_bool(&eb.left), eval_const_bool(&eb.right))
+                {
                     return Some(a != b);
                 }
                 None
@@ -4623,14 +4826,17 @@ fn expr_is_raw_tainted(
         }
         Expr::Call(call) => {
             if let Expr::Path(ep) = call.func.as_ref() {
-                let segs: Vec<String> = ep.path.segments.iter().map(|s| s.ident.to_string()).collect();
+                let segs: Vec<String> = ep
+                    .path
+                    .segments
+                    .iter()
+                    .map(|s| s.ident.to_string())
+                    .collect();
                 if let Some(last) = segs.last() {
                     if known_sanitizers.contains(last) {
                         return false;
                     }
-                    if last == "with_capacity"
-                        && segs.iter().any(|s| s == "String" || s == "Vec")
-                    {
+                    if last == "with_capacity" && segs.iter().any(|s| s == "String" || s == "Vec") {
                         return false;
                     }
                 }
@@ -4913,7 +5119,10 @@ fn block_is_genuine_primary_sanitizer(
             let cond_s = expr_to_compact(&ei.cond);
             if !self.in_discard_let
                 && ((cond_s.contains("find_opening_keymaterial_tag")
-                    && self.sets.tag_helpers.contains("find_opening_keymaterial_tag"))
+                    && self
+                        .sets
+                        .tag_helpers
+                        .contains("find_opening_keymaterial_tag"))
                     || (cond_s.contains("contains_keymaterial_tag")
                         && self.sets.tag_helpers.contains("contains_keymaterial_tag")))
                 && !cond_s.contains("is_empty")
@@ -5102,11 +5311,8 @@ fn block_is_valid_sanitizer_wrapper(
         fn visit_expr_method_call(&mut self, mc: &'a syn::ExprMethodCall) {
             if matches!(mc.method.to_string().as_str(), "push_str" | "push")
                 && mc.args.iter().any(|a| {
-                    expr_calls_known_sanitizer_on_var(
-                        a,
-                        self.known_sanitizers,
-                        self.param_tainted,
-                    ) || expr_refs_any_var(a, self.sanitized_vars)
+                    expr_calls_known_sanitizer_on_var(a, self.known_sanitizers, self.param_tainted)
+                        || expr_refs_any_var(a, self.sanitized_vars)
                         || expr_has_redacted_lit(a)
                 })
                 && let Some(base) = expr_base_ident(&mc.receiver)
@@ -5258,7 +5464,10 @@ fn expr_has_redacted_lit(e: &Expr) -> bool {
 fn expr_to_compact(e: &Expr) -> String {
     let mut ser = AstTextSer::default();
     ser.visit_expr(e);
-    ser.out.chars().filter(|c| !c.is_ascii_whitespace()).collect()
+    ser.out
+        .chars()
+        .filter(|c| !c.is_ascii_whitespace())
+        .collect()
 }
 struct FlowChecker<'a> {
     f: &'a FnInfo,
@@ -5348,8 +5557,7 @@ impl<'a> FlowChecker<'a> {
         }
 
         if self.is_html_frag_fn() {
-            if self.in_safe_strip_closure
-                && (compact == "rest" || compact == "enc[1..enc.len()-1]")
+            if self.in_safe_strip_closure && (compact == "rest" || compact == "enc[1..enc.len()-1]")
             {
                 return true;
             }
@@ -5360,7 +5568,9 @@ impl<'a> FlowChecker<'a> {
                 return true;
             }
             if self.in_html_bang_if
-                && (compact.contains("[i..i+rel+1]") || compact == "&bytes[i..]" || compact == "bytes[i..]")
+                && (compact.contains("[i..i+rel+1]")
+                    || compact == "&bytes[i..]"
+                    || compact == "bytes[i..]")
             {
                 return true;
             }
@@ -5373,7 +5583,10 @@ impl<'a> FlowChecker<'a> {
         }
 
         if self.f.name == "sanitize_html_tag_attributes_r4"
-            && (self.sets.tag_helpers.contains("scan_unquoted_html_token_end")
+            && (self
+                .sets
+                .tag_helpers
+                .contains("scan_unquoted_html_token_end")
                 || self.sets.all_fns.iter().any(|fn_i| {
                     fn_i.name == "scan_unquoted_html_token_end_cached"
                         && fn_i.ret_type_str.as_deref() == Some("usize")
@@ -5396,7 +5609,10 @@ impl<'a> FlowChecker<'a> {
 
         if self.f.name == "sanitize_json_substrings_and_mask"
             && self.has_live_deserializer_loop
-            && self.sets.sanitizers.contains("sanitize_json_value_r4_inner")
+            && self
+                .sets
+                .sanitizers
+                .contains("sanitize_json_value_r4_inner")
             && (compact.contains("[i..i+consumed]")
                 || compact.contains("[cursor..i]")
                 || compact.contains("[cursor..]")
@@ -5424,7 +5640,10 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
     fn visit_expr_closure(&mut self, ec: &'a syn::ExprClosure) {
         let prev_strip = self.in_safe_strip_closure;
         if self.is_html_frag_fn()
-            && self.sets.sanitizers.contains("sanitize_string_r4_inner_with_origin")
+            && self
+                .sets
+                .sanitizers
+                .contains("sanitize_string_r4_inner_with_origin")
             && let Some(first_pat) = ec.inputs.first()
         {
             let mut ids = Vec::new();
@@ -5501,7 +5720,10 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
                 && cond_s.contains(".is_err()")
                 && (self.sets.validators.contains("check_html_tag_attributes")
                     || self.sets.tag_helpers.contains("check_html_tag_attributes")
-                    || self.sets.tag_helpers.contains("check_html_tag_attributes_with_depth"))
+                    || self
+                        .sets
+                        .tag_helpers
+                        .contains("check_html_tag_attributes_with_depth"))
             {
                 self.in_html_tag_attr_dirty_if = true;
             }
@@ -5514,7 +5736,11 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
                 self.in_html_close_tag_if = true;
             }
             if (cond_s == "in_json_string" || (!has_or && cond_s == "bytes[i]!=b'<'"))
-                && self.f.callees.iter().any(|c| self.sets.validators.contains(c))
+                && self
+                    .f
+                    .callees
+                    .iter()
+                    .any(|c| self.sets.validators.contains(c))
             {
                 self.in_html_json_text_buf_if = true;
             }
@@ -5522,7 +5748,11 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
             self.f.name.as_str(),
             "verify_html_document_or_fragment" | "verify_html_document_or_fragment_with_origin"
         ) && (cond_s == "in_json_string" || (!has_or && cond_s == "bytes[i]!=b'<'"))
-            && self.f.callees.iter().any(|c| self.sets.validators.contains(c))
+            && self
+                .f
+                .callees
+                .iter()
+                .any(|c| self.sets.validators.contains(c))
         {
             self.in_html_json_text_buf_if = true;
         }
@@ -5547,7 +5777,10 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
             if ((self.is_verified_validator_call(&cond_s)
                 || (cond_s.contains("check_html_tag_attributes")
                     && (self.sets.tag_helpers.contains("check_html_tag_attributes")
-                        || self.sets.tag_helpers.contains("check_html_tag_attributes_with_depth"))))
+                        || self
+                            .sets
+                            .tag_helpers
+                            .contains("check_html_tag_attributes_with_depth"))))
                 && cond_s.contains(".is_err()"))
                 || cond_s.contains("name_raw_dirty")
                 || cond_s.contains("name_u003c_dirty")
@@ -5583,7 +5816,11 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
     fn visit_expr_assign(&mut self, ea: &'a syn::ExprAssign) {
         if matches!(
             unwrap_parens(&ea.left),
-            Expr::Index(_) | Expr::Unary(syn::ExprUnary { op: syn::UnOp::Deref(_), .. })
+            Expr::Index(_)
+                | Expr::Unary(syn::ExprUnary {
+                    op: syn::UnOp::Deref(_),
+                    ..
+                })
         ) {
             let rhs_safe = matches!(&*ea.right, Expr::Lit(el) if matches!(&el.lit, syn::Lit::Byte(lb) if matches!(lb.value(), b' ' | b'_' | 0)) || matches!(&el.lit, syn::Lit::Int(_)));
             if !rhs_safe {
@@ -5606,7 +5843,10 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
         let full_compact = {
             let mut ser = AstTextSer::default();
             ser.visit_expr_method_call(mc);
-            ser.out.chars().filter(|c| !c.is_ascii_whitespace()).collect::<String>()
+            ser.out
+                .chars()
+                .filter(|c| !c.is_ascii_whitespace())
+                .collect::<String>()
         };
         let is_lower_byte_collect = m == "collect"
             && !receiver_has_chars_call(&mc.receiver)
@@ -5743,8 +5983,10 @@ impl<'a> Visit<'a> for FlowChecker<'a> {
                     self.check_sink_expr(arg);
                 }
             } else if !is_redacted_ns {
-                let compact_toks: String =
-                    tok_str.chars().filter(|c| !c.is_ascii_whitespace()).collect();
+                let compact_toks: String = tok_str
+                    .chars()
+                    .filter(|c| !c.is_ascii_whitespace())
+                    .collect();
                 if compact_toks.contains("..")
                     || self
                         .slice_vars
@@ -5816,10 +6058,7 @@ fn contains_unsafe_slice_flow_in_expr<'a>(expr: &'a Expr, fc: &FlowChecker<'a>) 
                             | "matches"
                             | "rmatches"
                     ) || (m == "get"
-                        && mc
-                            .args
-                            .first()
-                            .is_some_and(expr_is_range_or_slice_index))
+                        && mc.args.first().is_some_and(expr_is_range_or_slice_index))
                         || (m == "collect" && receiver_has_chars_call(&mc.receiver)))
                         && !self.fc.is_safe_slice_expr(e)
                     {
@@ -6079,12 +6318,20 @@ fn block_has_unsafe_wlan_slice_flow(
         && block_has_live_deserializer_cursor_loop(block);
 
     let is_non_secret_return = (f.wlan_kind == Some(WlanHelperKind::Validator)
-        && f.ret_type_str.as_deref().is_some_and(is_non_secret_error_result))
+        && f.ret_type_str
+            .as_deref()
+            .is_some_and(is_non_secret_error_result))
         || (f.wlan_kind == Some(WlanHelperKind::TagHelperFn)
             && (matches!(
                 f.ret_type_str.as_deref(),
-                Some("bool") | Some("usize") | Some("Option<usize>") | Some("Option<(usize,usize)>")
-            ) || f.ret_type_str.as_deref().is_some_and(is_non_secret_error_result)));
+                Some("bool")
+                    | Some("usize")
+                    | Some("Option<usize>")
+                    | Some("Option<(usize,usize)>")
+            ) || f
+                .ret_type_str
+                .as_deref()
+                .is_some_and(is_non_secret_error_result)));
     let mut fc = FlowChecker {
         f,
         sets,
@@ -6111,9 +6358,7 @@ fn block_has_unsafe_wlan_slice_flow(
         unsafe_found: false,
     };
     fc.visit_block(block);
-    if !is_non_secret_return
-        && let Some(Stmt::Expr(tail, None)) = block.stmts.last()
-    {
+    if !is_non_secret_return && let Some(Stmt::Expr(tail, None)) = block.stmts.last() {
         fc.check_sink_expr(tail);
     }
     fc.unsafe_found
@@ -6217,7 +6462,12 @@ fn expr_is_or_derives_slice(
                                 && !has_dangerous_wlan_fn_verb(&fn_i.name, true)
                                 && matches!(
                                     fn_i.ret_type_str.as_deref(),
-                                    Some("usize" | "bool" | "Option<usize>" | "Option<(usize,usize)>")
+                                    Some(
+                                        "usize"
+                                            | "bool"
+                                            | "Option<usize>"
+                                            | "Option<(usize,usize)>"
+                                    )
                                 )
                         });
                         if self.sets.sanitizers.contains(&lname)
@@ -6255,7 +6505,10 @@ fn expr_is_or_derives_slice(
                     if matches!(m.as_str(), "byte_offset" | "valid_up_to" | "error_len")
                         && !self.sets.all_fns.iter().any(|fn_i| {
                             fn_i.name == m
-                                && !matches!(fn_i.ret_type_str.as_deref(), Some("usize" | "Option<usize>"))
+                                && !matches!(
+                                    fn_i.ret_type_str.as_deref(),
+                                    Some("usize" | "Option<usize>")
+                                )
                         })
                         && !matches!(unwrap_parens(&mc.receiver), Expr::Index(_) | Expr::Lit(_))
                     {
@@ -6298,11 +6551,7 @@ fn expr_is_or_derives_slice(
                     | "trim_matches"
                     | "matches"
                     | "rmatches"
-            ) || (m == "get"
-                && mc
-                    .args
-                    .first()
-                    .is_some_and(expr_is_range_or_slice_index))
+            ) || (m == "get" && mc.args.first().is_some_and(expr_is_range_or_slice_index))
                 || (m == "collect" && receiver_has_chars_call(&mc.receiver))
             {
                 self.hit = true;

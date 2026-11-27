@@ -1,11 +1,11 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
-use rusqlite::Connection;
 use crate::lz4_block::decode_mozlz4;
 use crate::net::build_ethernet_pcap;
 use crate::sys_fs::{build_ata_smart, build_sample_pe64_dotnet_exe};
 use crate::util::{read_u32_le, write_file_deterministic};
 use crate::winctl::build_valid_edid_256;
+use anyhow::{Result, ensure};
+use rusqlite::Connection;
+use std::path::Path;
 
 pub fn generate_corrupt_dir(corrupt_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(corrupt_dir)?;
@@ -90,43 +90,67 @@ pub fn verify_corrupt_dir(corrupt_dir: &Path) -> Result<(usize, Vec<String>)> {
 
     // 4 bad mozlz4
     let mlz = std::fs::read(corrupt_dir.join("bad_mozlz4.jsonlz4"))?;
-    ensure!(decode_mozlz4(&mlz).is_err(), "bad_mozlz4 unexpectedly decompressed");
+    ensure!(
+        decode_mozlz4(&mlz).is_err(),
+        "bad_mozlz4 unexpectedly decompressed"
+    );
 
     // 5 & 6 EDID
     let ed1 = std::fs::read(corrupt_dir.join("bad_edid_checksum.bin"))?;
     let sum1: u32 = ed1.iter().map(|&x| x as u32).sum();
-    ensure!(!sum1.is_multiple_of(256), "bad_edid_checksum unexpectedly valid");
+    ensure!(
+        !sum1.is_multiple_of(256),
+        "bad_edid_checksum unexpectedly valid"
+    );
     let ed2 = std::fs::read(corrupt_dir.join("truncated_edid.bin"))?;
     ensure!(ed2.len() < 128, "truncated_edid not truncated");
 
     // 7 & 8 PCAP
     let pc1 = std::fs::read(corrupt_dir.join("bad_pcap_magic.pcap"))?;
-    ensure!(read_u32_le(&pc1, 0)? != 0xA1B2_C3D4, "bad_pcap_magic had valid magic");
+    ensure!(
+        read_u32_le(&pc1, 0)? != 0xA1B2_C3D4,
+        "bad_pcap_magic had valid magic"
+    );
     let pc2 = std::fs::read(corrupt_dir.join("truncated_pcap.pcap"))?;
     ensure!(pc2.len() < 24 + 16, "truncated_pcap not truncated");
 
     // 9 & 10 PE
     let pe1 = std::fs::read(corrupt_dir.join("bad_pe_magic.exe"))?;
-    ensure!(read_u32_le(&pe1, 0x3C)? as usize >= pe1.len(), "bad_pe_magic in bounds");
+    ensure!(
+        read_u32_le(&pe1, 0x3C)? as usize >= pe1.len(),
+        "bad_pe_magic in bounds"
+    );
     let pe2 = std::fs::read(corrupt_dir.join("truncated_pe.exe"))?;
     ensure!(pe2.len() < 0x84, "truncated_pe not truncated");
 
     // 11 SMART
     let sm = std::fs::read(corrupt_dir.join("bad_smart_checksum.bin"))?;
     let ssum: u32 = sm.iter().map(|&x| x as u32).sum();
-    ensure!(!ssum.is_multiple_of(256), "bad_smart_checksum unexpectedly valid");
+    ensure!(
+        !ssum.is_multiple_of(256),
+        "bad_smart_checksum unexpectedly valid"
+    );
 
     // 12 USN
     let usn = std::fs::read(corrupt_dir.join("truncated_usn.bin"))?;
-    ensure!(read_u32_le(&usn, 0)? as usize > usn.len(), "truncated_usn not truncated");
+    ensure!(
+        read_u32_le(&usn, 0)? as usize > usn.len(),
+        "truncated_usn not truncated"
+    );
 
     // 13 EXIF
     let ex = std::fs::read(corrupt_dir.join("bad_exif.jpg"))?;
-    ensure!(ex.len() == 16 && !ex.ends_with(&[0xFF, 0xD9]), "bad_exif invalid");
+    ensure!(
+        ex.len() == 16 && !ex.ends_with(&[0xFF, 0xD9]),
+        "bad_exif invalid"
+    );
 
     // 14 NK2
     let nk2 = std::fs::read(corrupt_dir.join("bad_nk2.nk2"))?;
-    ensure!(read_u32_le(&nk2, 0)? != 0x0D0A_04BA, "bad_nk2 had valid magic");
+    ensure!(
+        read_u32_le(&nk2, 0)? != 0x0D0A_04BA,
+        "bad_nk2 had valid magic"
+    );
 
     details.push("corrupt_dir: all 14 negative fixtures verified".into());
     Ok((14, details))

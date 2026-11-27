@@ -1,9 +1,9 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
 use crate::util::{
-    read_u32_le, utf16le_bytes, utf16le_nul, write_file_deterministic, FIXED_FILETIME,
-    FIXED_UNIX_SECS,
+    FIXED_FILETIME, FIXED_UNIX_SECS, read_u32_le, utf16le_bytes, utf16le_nul,
+    write_file_deterministic,
 };
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 fn push_minidump_string(buf: &mut Vec<u8>, s: &str) -> u32 {
     let rva = buf.len() as u32;
@@ -205,7 +205,11 @@ pub fn verify_crash_dir(crash_dir: &Path) -> Result<(usize, Vec<String>)> {
     let dmp = std::fs::read(crash_dir.join("memory.dmp"))?;
     ensure!(read_u32_le(&dmp, 0)? == 0x504D_444D, "bad MDMP magic");
     let num_streams = read_u32_le(&dmp, 8)? as usize;
-    ensure!(num_streams == 4, "MDMP unexpected stream count {}", num_streams);
+    ensure!(
+        num_streams == 4,
+        "MDMP unexpected stream count {}",
+        num_streams
+    );
     let dir_rva = read_u32_le(&dmp, 12)? as usize;
     let mut found_types = Vec::new();
     for i in 0..num_streams {
@@ -213,28 +217,51 @@ pub fn verify_crash_dir(crash_dir: &Path) -> Result<(usize, Vec<String>)> {
         let stype = read_u32_le(&dmp, off)?;
         let dsz = read_u32_le(&dmp, off + 4)? as usize;
         let drva = read_u32_le(&dmp, off + 8)? as usize;
-        ensure!(drva + dsz <= dmp.len(), "MDMP stream {} out of bounds", stype);
+        ensure!(
+            drva + dsz <= dmp.len(),
+            "MDMP stream {} out of bounds",
+            stype
+        );
         found_types.push(stype);
     }
-    ensure!(found_types == [7, 6, 4, 3], "MDMP unexpected stream types {:?}", found_types);
+    ensure!(
+        found_types == [7, 6, 4, 3],
+        "MDMP unexpected stream types {:?}",
+        found_types
+    );
     details.push("crash/memory.dmp: MDMP 4 streams verified".into());
 
     let wer = std::fs::read(crash_dir.join("Report.wer"))?;
-    ensure!(wer.starts_with(&[0xFF, 0xFE]) && wer.len() % 2 == 0, "Report.wer bad UTF-16LE BOM");
+    ensure!(
+        wer.starts_with(&[0xFF, 0xFE]) && wer.len() % 2 == 0,
+        "Report.wer bad UTF-16LE BOM"
+    );
     let units: Vec<u16> = wer[2..]
-        .as_chunks::<2>().0.iter()
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
     let decoded = String::from_utf16(&units)?;
-    ensure!(decoded.contains("EventType=APPCRASH") && decoded.contains("c0000005"), "Report.wer missing fields");
+    ensure!(
+        decoded.contains("EventType=APPCRASH") && decoded.contains("c0000005"),
+        "Report.wer missing fields"
+    );
     details.push("crash/Report.wer: UTF-16LE APPCRASH verified".into());
 
     let cbs = std::fs::read_to_string(crash_dir.join("CBS.log"))?;
-    ensure!(cbs.contains("KB5048685") && cbs.contains("KB5049981"), "CBS.log missing KBs");
+    ensure!(
+        cbs.contains("KB5048685") && cbs.contains("KB5049981"),
+        "CBS.log missing KBs"
+    );
     details.push("crash/CBS.log: verified".into());
 
-    let wmi: serde_json::Value = serde_json::from_slice(&std::fs::read(crash_dir.join("wmi_posture.json"))?)?;
-    ensure!(wmi["defender_status"]["AntivirusEnabled"] == true, "wmi_posture.json invalid");
+    let wmi: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(crash_dir.join("wmi_posture.json"))?)?;
+    ensure!(
+        wmi["defender_status"]["AntivirusEnabled"] == true,
+        "wmi_posture.json invalid"
+    );
     details.push("crash/wmi_posture.json: verified".into());
 
     Ok((4, details))

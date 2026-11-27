@@ -4,10 +4,10 @@ pub mod surface_bin;
 pub mod surface_cli_mcp;
 pub mod surface_fs;
 
-use std::collections::HashSet;
-use std::path::PathBuf;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::path::PathBuf;
 
 use crate::rules::RuleRegistry;
 use crate::surface_bin::scan_binaries;
@@ -56,7 +56,12 @@ pub fn run_r4_scan(cfg: &R4ScanConfig) -> Result<R4Report> {
     let baseline_notes = fs_stats.baseline_notes;
 
     if cfg.scan_binaries {
-        scan_binaries(&cfg.guap_root, &registry, &mut files_scanned, &mut violations)?;
+        scan_binaries(
+            &cfg.guap_root,
+            &registry,
+            &mut files_scanned,
+            &mut violations,
+        )?;
     }
 
     if cfg.scan_cli_mcp {
@@ -225,14 +230,38 @@ mod tests {
     #[test]
     fn positive_r4_api_cred_01_through_06() {
         let cases = [
-            ("R4-API-CRED-01", "unsafe { CredEnumerateW(ptr, 0, &mut count, &mut creds); }"),
-            ("R4-API-CRED-02", "unsafe { VaultEnumerateItems(vault, 0, &mut count, &mut items); }"),
-            ("R4-API-CRED-03", "unsafe { LsaRetrievePrivateData(policy, &key, &mut data); }"),
-            ("R4-API-CRED-04", "unsafe { CryptUnprotectData(&in_blob, None, None, None, None, 0, &mut out); }"),
-            ("R4-API-CRED-05", "let flags = WLAN_PROFILE_GET_PLAINTEXT_KEY;\nlet xml = \"<keyMaterial>secret</keyMaterial>\";"),
-            ("R4-API-CRED-05", "unsafe { WlanGetProfile(h, &guid, name, None, &mut xml, Some(&mut 0x00000004), None); }"),
-            ("R4-API-CRED-06", "pub fn extract_boot_key(sam: &[u8]) { let _ = lsa_secret_decrypt(sam); }"),
-            ("R4-API-CRED-06", "pub fn dump_sam(hive: &[u8]) { /* SAM RC4 */ let _ = PEK; }"),
+            (
+                "R4-API-CRED-01",
+                "unsafe { CredEnumerateW(ptr, 0, &mut count, &mut creds); }",
+            ),
+            (
+                "R4-API-CRED-02",
+                "unsafe { VaultEnumerateItems(vault, 0, &mut count, &mut items); }",
+            ),
+            (
+                "R4-API-CRED-03",
+                "unsafe { LsaRetrievePrivateData(policy, &key, &mut data); }",
+            ),
+            (
+                "R4-API-CRED-04",
+                "unsafe { CryptUnprotectData(&in_blob, None, None, None, None, 0, &mut out); }",
+            ),
+            (
+                "R4-API-CRED-05",
+                "let flags = WLAN_PROFILE_GET_PLAINTEXT_KEY;\nlet xml = \"<keyMaterial>secret</keyMaterial>\";",
+            ),
+            (
+                "R4-API-CRED-05",
+                "unsafe { WlanGetProfile(h, &guid, name, None, &mut xml, Some(&mut 0x00000004), None); }",
+            ),
+            (
+                "R4-API-CRED-06",
+                "pub fn extract_boot_key(sam: &[u8]) { let _ = lsa_secret_decrypt(sam); }",
+            ),
+            (
+                "R4-API-CRED-06",
+                "pub fn dump_sam(hive: &[u8]) { /* SAM RC4 */ let _ = PEK; }",
+            ),
         ];
 
         for (expected_rule, snippet) in cases {
@@ -257,7 +286,11 @@ mod tests {
             "use chrome2rust_core::crypto::try_decrypt_chrome_blob;\n",
         );
         let r1 = scan_dir(dir1.path());
-        assert!(r1.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"));
+        assert!(
+            r1.violations
+                .iter()
+                .any(|v| v.rule_id == "R4-BASELINE-CHROME")
+        );
 
         // 2. Expansion inside new chrome2rust module
         let dir2 = TempDir::new().unwrap();
@@ -267,7 +300,11 @@ mod tests {
             "pub fn dump() { let db = \"key4.db\"; let _ = db; }\n",
         );
         let r2 = scan_dir(dir2.path());
-        assert!(r2.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"));
+        assert!(
+            r2.violations
+                .iter()
+                .any(|v| v.rule_id == "R4-BASELINE-CHROME")
+        );
 
         // 3. Decrypting EncryptionScheme::Dpapi in crypto.rs
         let dir3 = TempDir::new().unwrap();
@@ -277,7 +314,11 @@ mod tests {
             "pub fn try_decrypt_chrome_blob(s: EncryptionScheme) -> (EncryptionScheme, Option<String>) {\n    match s {\n        EncryptionScheme::Dpapi => (s, Some(\"leaked\".into())),\n        _ => (s, None),\n    }\n}\n",
         );
         let r3 = scan_dir(dir3.path());
-        assert!(r3.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"));
+        assert!(
+            r3.violations
+                .iter()
+                .any(|v| v.rule_id == "R4-BASELINE-CHROME")
+        );
 
         // 4. Adding windows DPAPI dependency to chrome2rust Cargo.toml
         let dir4 = TempDir::new().unwrap();
@@ -287,24 +328,76 @@ mod tests {
             "[package]\nname = \"chrome2rust-core\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nwindows = { version = \"0.62\", features = [\"Win32_Security_Cryptography\"] }\n",
         );
         let r4 = scan_dir(dir4.path());
-        assert!(r4.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"));
+        assert!(
+            r4.violations
+                .iter()
+                .any(|v| v.rule_id == "R4-BASELINE-CHROME")
+        );
     }
 
     #[test]
     fn positive_r4_inj_01_through_04() {
         let cases = [
-            ("R4-INJ-01", "suite/src/lib.rs", "pub fn tool() -> &'static str { \"RunAsDate\" }\n"),
-            ("R4-INJ-01", "suite/src/lib.rs", "pub fn tool() -> &'static str { \"SocketSniff\" }\n"),
-            ("R4-INJ-01", "suite/src/lib.rs", "pub fn tool() -> &'static str { \"InjectedDLL\" }\n"),
-            ("R4-INJ-02", "suite/src/lib.rs", "unsafe { CreateRemoteThread(h, None, 0, None, None, 0, None); }\n"),
-            ("R4-INJ-02", "suite/src/lib.rs", "unsafe { NtCreateThreadEx(&mut th, 0, None, h, addr, arg, 0, 0, 0, 0, None); }\n"),
-            ("R4-INJ-02", "suite/src/lib.rs", "unsafe { DetourAttach(&mut target, hook); }\n"),
-            ("R4-INJ-02", "suite/src/lib.rs", "unsafe { MH_CreateHook(target, detour, &mut orig); }\n"),
-            ("R4-INJ-02", "suite/Cargo.toml", "[package]\nname = \"bad\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nretour = \"0.3\"\n"),
-            ("R4-INJ-03", "suite/src/lib.rs", "unsafe { SetWindowsHookExW(WH_CBT, Some(proc), dll_mod, tid); }\n"),
-            ("R4-INJ-03", "winctl2rust/crates/winctl2rust-audio/src/lib.rs", "unsafe { SetWindowsHookExW(WH_GETMESSAGE, Some(proc), dll_mod, tid); }\n"),
-            ("R4-INJ-04", "sys2rust/src/lib.rs", "unsafe { WriteProcessMemory(h, addr, buf, len, None); }\n"),
-            ("R4-INJ-04", "winctl2rust/crates/winctl2rust-desktop/src/ctrl_export.rs", "let fl = PAGE_EXECUTE_READWRITE;\nunsafe { WriteProcessMemory(h, addr, buf, len, None); }\n"),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "pub fn tool() -> &'static str { \"RunAsDate\" }\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "pub fn tool() -> &'static str { \"SocketSniff\" }\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "pub fn tool() -> &'static str { \"InjectedDLL\" }\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/src/lib.rs",
+                "unsafe { CreateRemoteThread(h, None, 0, None, None, 0, None); }\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/src/lib.rs",
+                "unsafe { NtCreateThreadEx(&mut th, 0, None, h, addr, arg, 0, 0, 0, 0, None); }\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/src/lib.rs",
+                "unsafe { DetourAttach(&mut target, hook); }\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/src/lib.rs",
+                "unsafe { MH_CreateHook(target, detour, &mut orig); }\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/Cargo.toml",
+                "[package]\nname = \"bad\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nretour = \"0.3\"\n",
+            ),
+            (
+                "R4-INJ-03",
+                "suite/src/lib.rs",
+                "unsafe { SetWindowsHookExW(WH_CBT, Some(proc), dll_mod, tid); }\n",
+            ),
+            (
+                "R4-INJ-03",
+                "winctl2rust/crates/winctl2rust-audio/src/lib.rs",
+                "unsafe { SetWindowsHookExW(WH_GETMESSAGE, Some(proc), dll_mod, tid); }\n",
+            ),
+            (
+                "R4-INJ-04",
+                "sys2rust/src/lib.rs",
+                "unsafe { WriteProcessMemory(h, addr, buf, len, None); }\n",
+            ),
+            (
+                "R4-INJ-04",
+                "winctl2rust/crates/winctl2rust-desktop/src/ctrl_export.rs",
+                "let fl = PAGE_EXECUTE_READWRITE;\nunsafe { WriteProcessMemory(h, addr, buf, len, None); }\n",
+            ),
         ];
 
         for (expected_rule, rel, content) in cases {
@@ -490,16 +583,8 @@ pub fn list_codecs() {
             "sys2rust/target/debug/build/tmp.rs",
             "CreateRemoteThread();\n",
         );
-        write_file(
-            dir.path(),
-            ".git/hooks/pre-commit.rs",
-            "RunAsDate();\n",
-        );
-        write_file(
-            dir.path(),
-            ".agents/notes.rs",
-            "WebBrowserPassView();\n",
-        );
+        write_file(dir.path(), ".git/hooks/pre-commit.rs", "RunAsDate();\n");
+        write_file(dir.path(), ".agents/notes.rs", "WebBrowserPassView();\n");
 
         let report = scan_dir(dir.path());
         assert!(
@@ -519,7 +604,12 @@ pub fn list_codecs() {
         );
         let report = scan_dir(dir.path());
         assert!(!report.passed);
-        assert!(report.violations.iter().any(|v| v.rule_id == "R4-API-CRED-01"));
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|v| v.rule_id == "R4-API-CRED-01")
+        );
     }
 
     #[test]
@@ -539,7 +629,11 @@ pub fn list_codecs() {
             utf16_bytes.extend_from_slice(&ch.to_le_bytes());
         }
         utf16_bytes.extend_from_slice(&[0, 0]);
-        write_bytes(dir.path(), "suite/target/release/utf16_bad.exe", &utf16_bytes);
+        write_bytes(
+            dir.path(),
+            "suite/target/release/utf16_bad.exe",
+            &utf16_bytes,
+        );
 
         // 3. winctl2rust control-export binary with WriteProcessMemory + LVITEMW -> allowed
         write_bytes(
@@ -568,17 +662,36 @@ pub fn list_codecs() {
         .unwrap();
 
         assert!(!report.passed);
-        assert!(report.violations.iter().any(|v| {
-            v.rule_id == "R4-API-CRED-01" && v.path.ends_with("ascii_bad.exe")
-        }));
-        assert!(report.violations.iter().any(|v| {
-            v.rule_id == "R4-INJ-01" && v.path.ends_with("utf16_bad.exe")
-        }));
-        assert!(report.violations.iter().any(|v| {
-            v.rule_id == "R4-API-CRED-01" && v.path.ends_with("bad.dll")
-        }));
-        assert!(!report.violations.iter().any(|v| v.path.ends_with("winctl2rust.exe")));
-        assert!(!report.violations.iter().any(|v| v.path.ends_with("proc.dll")));
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|v| { v.rule_id == "R4-API-CRED-01" && v.path.ends_with("ascii_bad.exe") })
+        );
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|v| { v.rule_id == "R4-INJ-01" && v.path.ends_with("utf16_bad.exe") })
+        );
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|v| { v.rule_id == "R4-API-CRED-01" && v.path.ends_with("bad.dll") })
+        );
+        assert!(
+            !report
+                .violations
+                .iter()
+                .any(|v| v.path.ends_with("winctl2rust.exe"))
+        );
+        assert!(
+            !report
+                .violations
+                .iter()
+                .any(|v| v.path.ends_with("proc.dll"))
+        );
     }
 
     fn compile_mock_exe(src: &str, out_exe: &Path) {
@@ -627,7 +740,9 @@ fn main() {
     }
 }
 "#;
-        let clean_exe = dir.path().join("clean_suite/target/release/clean_suite.exe");
+        let clean_exe = dir
+            .path()
+            .join("clean_suite/target/release/clean_suite.exe");
         compile_mock_exe(clean_src, &clean_exe);
         let clean_report = run_r4_scan(&R4ScanConfig {
             guap_root: dir.path().to_path_buf(),
@@ -676,7 +791,9 @@ fn main() {
     }
 }
 "#;
-        let chrome_bad_exe = dir.path().join("chrome2rust/target/release/chrome2rust-mcp.exe");
+        let chrome_bad_exe = dir
+            .path()
+            .join("chrome2rust/target/release/chrome2rust-mcp.exe");
         compile_mock_exe(chrome_bad_src, &chrome_bad_exe);
 
         let bad_report = run_r4_scan(&R4ScanConfig {
@@ -687,9 +804,24 @@ fn main() {
         .unwrap();
 
         assert!(!bad_report.passed);
-        assert!(bad_report.violations.iter().any(|v| v.rule_id == "R4-INJ-01"));
-        assert!(bad_report.violations.iter().any(|v| v.rule_id == "R4-LEGACY-01"));
-        assert!(bad_report.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"));
+        assert!(
+            bad_report
+                .violations
+                .iter()
+                .any(|v| v.rule_id == "R4-INJ-01")
+        );
+        assert!(
+            bad_report
+                .violations
+                .iter()
+                .any(|v| v.rule_id == "R4-LEGACY-01")
+        );
+        assert!(
+            bad_report
+                .violations
+                .iter()
+                .any(|v| v.rule_id == "R4-BASELINE-CHROME")
+        );
     }
 
     #[test]
@@ -725,12 +857,18 @@ fn main() {
             report.crates_scanned
         );
         assert!(
-            report.baseline_notes.iter().any(|n| n.contains("logins.rs")),
+            report
+                .baseline_notes
+                .iter()
+                .any(|n| n.contains("logins.rs")),
             "expected logins.rs in baseline_notes: {:?}",
             report.baseline_notes
         );
         assert!(
-            report.baseline_notes.iter().any(|n| n.contains("crypto.rs")),
+            report
+                .baseline_notes
+                .iter()
+                .any(|n| n.contains("crypto.rs")),
             "expected crypto.rs in baseline_notes: {:?}",
             report.baseline_notes
         );
@@ -1135,28 +1273,116 @@ pub fn hook() {
     fn regression_separators_camelcase_cargo_multiline_and_chrome_baseline() {
         // B1a-camel, B1b-*, B1c-*, B1d-*, B1e, B3c, B3d, B4d, B4f, Reviewer 2 Finding 5 & 6
         let cases: &[(&str, &str, &str)] = &[
-            ("R4-CRED-01", "suite/src/lib.rs", "pub struct Cred2RustCli;\n"),
-            ("R4-INJ-01", "suite/Cargo.toml", "[package]\nname = \"run-as-date\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
-            ("R4-INJ-01", "suite/src/lib.rs", "#[command(name = \"socket-sniff\")]\npub struct S;\n"),
-            ("R4-INJ-01", "suite/src/lib.rs", "#[command(name = \"injected-dll\")]\npub struct I;\n"),
-            ("R4-CRED-02", "suite/src/lib.rs", "#[command(name = \"custom-pass-view\")]\npub struct C;\n"),
-            ("R4-LEGACY-29", "suite/src/lib.rs", "#[command(name = \"user-dump\")]\npub struct U;\n"),
-            ("R4-INJ-01", "suite/src/lib.rs", "pub fn invokeRunAsDateTool() {}\n"),
-            ("R4-API-CRED-01", "suite/src/lib.rs", "pub fn callCredEnumerateWWrapper() {}\n"),
-            ("R4-INJ-02", "suite/src/lib.rs", "pub fn doCreateRemoteThreadInject() {}\n"),
-            ("R4-LEGACY-01", "suite/src/lib.rs", "pub fn openIeCacheView() {}\n"),
-            ("R4-LEGACY-01", "suite/src/lib.rs", "#[command(name = \"IE Cache View\")]\npub struct A;\n"),
-            ("R4-LEGACY-28", "suite/src/lib.rs", "#[command(name = \"Win Updates List\")]\npub struct B;\n"),
-            ("R4-CRED-02", "suite/src/lib.rs", "#[command(name = \"Chrome Pass\")]\npub struct C;\n"),
-            ("R4-CRED-02", "suite/src/lib.rs", "#[command(name = \"Sniff Pass\")]\npub struct D;\n"),
-            ("R4-CRED-02", "suite/src/lib.rs", "#[command(name = \"Product Key\")]\npub struct E;\n"),
-            ("R4-INJ-01", "suite/src/lib.rs", "#[command(name = \"Run As Date\")]\npub struct F;\n"),
-            ("R4-INJ-02", "suite/Cargo.toml", "[package]\nname = \"ok\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nmy_hook = { package = \"retour\", version = \"0.3\" }\n"),
-            ("R4-BASELINE-CHROME", "chrome2rust/crates/chrome2rust-core/Cargo.toml", "[package]\nname = \"chrome2rust-core\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nwin = { package = \"windows-sys\", version = \"0.59\", features = [\"Win32_Security_Cryptography\"] }\n"),
-            ("R4-API-CRED-05", "suite/src/lib.rs", "pub fn f() {\n    unsafe {\n        WlanGetProfile(\n            h,\n            &g,\n            n,\n            None,\n            &mut x,\n            Some(&mut 0x00000004),\n            None,\n        );\n    }\n}\n"),
-            ("R4-API-CRED-05", "suite/src/lib.rs", "pub fn f() { unsafe { WlanGetProfile(h, &g, n, None, &mut x, Some(&mut 0x00000004u32), None); } }\n"),
-            ("R4-BASELINE-CHROME", "chrome2rust/crates/chrome2rust-core/src/crypto.rs", "pub fn try_decrypt_chrome_blob(scheme: EncryptionScheme) -> (EncryptionScheme, Option<String>) {\n    match scheme {\n        EncryptionScheme::Dpapi\n            => (scheme, Some(\"leaked\".into())),\n        _ => (scheme, None),\n    }\n}\n"),
-            ("R4-BASELINE-CHROME", "suite/src/lib.rs", "pub fn mix() { /* NO CryptProtectData */ PK11SDR_Decrypt(); }\n"),
+            (
+                "R4-CRED-01",
+                "suite/src/lib.rs",
+                "pub struct Cred2RustCli;\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/Cargo.toml",
+                "[package]\nname = \"run-as-date\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "#[command(name = \"socket-sniff\")]\npub struct S;\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "#[command(name = \"injected-dll\")]\npub struct I;\n",
+            ),
+            (
+                "R4-CRED-02",
+                "suite/src/lib.rs",
+                "#[command(name = \"custom-pass-view\")]\npub struct C;\n",
+            ),
+            (
+                "R4-LEGACY-29",
+                "suite/src/lib.rs",
+                "#[command(name = \"user-dump\")]\npub struct U;\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "pub fn invokeRunAsDateTool() {}\n",
+            ),
+            (
+                "R4-API-CRED-01",
+                "suite/src/lib.rs",
+                "pub fn callCredEnumerateWWrapper() {}\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/src/lib.rs",
+                "pub fn doCreateRemoteThreadInject() {}\n",
+            ),
+            (
+                "R4-LEGACY-01",
+                "suite/src/lib.rs",
+                "pub fn openIeCacheView() {}\n",
+            ),
+            (
+                "R4-LEGACY-01",
+                "suite/src/lib.rs",
+                "#[command(name = \"IE Cache View\")]\npub struct A;\n",
+            ),
+            (
+                "R4-LEGACY-28",
+                "suite/src/lib.rs",
+                "#[command(name = \"Win Updates List\")]\npub struct B;\n",
+            ),
+            (
+                "R4-CRED-02",
+                "suite/src/lib.rs",
+                "#[command(name = \"Chrome Pass\")]\npub struct C;\n",
+            ),
+            (
+                "R4-CRED-02",
+                "suite/src/lib.rs",
+                "#[command(name = \"Sniff Pass\")]\npub struct D;\n",
+            ),
+            (
+                "R4-CRED-02",
+                "suite/src/lib.rs",
+                "#[command(name = \"Product Key\")]\npub struct E;\n",
+            ),
+            (
+                "R4-INJ-01",
+                "suite/src/lib.rs",
+                "#[command(name = \"Run As Date\")]\npub struct F;\n",
+            ),
+            (
+                "R4-INJ-02",
+                "suite/Cargo.toml",
+                "[package]\nname = \"ok\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nmy_hook = { package = \"retour\", version = \"0.3\" }\n",
+            ),
+            (
+                "R4-BASELINE-CHROME",
+                "chrome2rust/crates/chrome2rust-core/Cargo.toml",
+                "[package]\nname = \"chrome2rust-core\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nwin = { package = \"windows-sys\", version = \"0.59\", features = [\"Win32_Security_Cryptography\"] }\n",
+            ),
+            (
+                "R4-API-CRED-05",
+                "suite/src/lib.rs",
+                "pub fn f() {\n    unsafe {\n        WlanGetProfile(\n            h,\n            &g,\n            n,\n            None,\n            &mut x,\n            Some(&mut 0x00000004),\n            None,\n        );\n    }\n}\n",
+            ),
+            (
+                "R4-API-CRED-05",
+                "suite/src/lib.rs",
+                "pub fn f() { unsafe { WlanGetProfile(h, &g, n, None, &mut x, Some(&mut 0x00000004u32), None); } }\n",
+            ),
+            (
+                "R4-BASELINE-CHROME",
+                "chrome2rust/crates/chrome2rust-core/src/crypto.rs",
+                "pub fn try_decrypt_chrome_blob(scheme: EncryptionScheme) -> (EncryptionScheme, Option<String>) {\n    match scheme {\n        EncryptionScheme::Dpapi\n            => (scheme, Some(\"leaked\".into())),\n        _ => (scheme, None),\n    }\n}\n",
+            ),
+            (
+                "R4-BASELINE-CHROME",
+                "suite/src/lib.rs",
+                "pub fn mix() { /* NO CryptProtectData */ PK11SDR_Decrypt(); }\n",
+            ),
         ];
 
         for (expected_rule, rel, content) in cases {
@@ -1181,7 +1407,9 @@ fn main() {
     }
 }
 "#;
-            let exe = dir.path().join("chrome2rust/target/release/chrome2rust-mcp.exe");
+            let exe = dir
+                .path()
+                .join("chrome2rust/target/release/chrome2rust-mcp.exe");
             compile_mock_exe(src, &exe);
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
@@ -1190,7 +1418,10 @@ fn main() {
             })
             .unwrap();
             assert!(
-                !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"),
+                !r.passed
+                    && r.violations
+                        .iter()
+                        .any(|v| v.rule_id == "R4-BASELINE-CHROME"),
                 "B4f must fail R4-BASELINE-CHROME, got {:?}",
                 r.violations
             );
@@ -1233,7 +1464,11 @@ fn main() {
             let mut data = vec![0u8; FOUR_MIB + 4096];
             data[0..4].copy_from_slice(b"MZ\x90\x00");
             data[FOUR_MIB - 6..FOUR_MIB - 6 + 13].copy_from_slice(b"foobaracm.exe");
-            write_bytes(dir.path(), "suite/target/release/benign_straddle.exe", &data);
+            write_bytes(
+                dir.path(),
+                "suite/target/release/benign_straddle.exe",
+                &data,
+            );
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
                 scan_binaries: true,
@@ -1254,7 +1489,11 @@ fn main() {
             data[0..4].copy_from_slice(b"MZ\x90\x00");
             let off = FOUR_MIB - 4096 - 6;
             data[off..off + 13].copy_from_slice(b"foobaracm.exe");
-            write_bytes(dir.path(), "suite/target/release/benign_straddle2.exe", &data);
+            write_bytes(
+                dir.path(),
+                "suite/target/release/benign_straddle2.exe",
+                &data,
+            );
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
                 scan_binaries: true,
@@ -1282,8 +1521,17 @@ fn main() {
                 scan_cli_mcp: false,
             })
             .unwrap();
-            let cred_02: Vec<_> = r.violations.iter().filter(|v| v.rule_id == "R4-CRED-02").collect();
-            assert_eq!(cred_02.len(), 1, "expected exactly 1 R4-CRED-02, got {:?}", cred_02);
+            let cred_02: Vec<_> = r
+                .violations
+                .iter()
+                .filter(|v| v.rule_id == "R4-CRED-02")
+                .collect();
+            assert_eq!(
+                cred_02.len(),
+                1,
+                "expected exactly 1 R4-CRED-02, got {:?}",
+                cred_02
+            );
             assert_eq!(cred_02[0].matched_symbol, "WebBrowserPassView");
         }
 
@@ -1343,9 +1591,18 @@ pub fn raw_c_str_and_char() {
         for (rule, snippet) in [
             ("R4-CRED-02", "pub fn run_netpass() {}\n"),
             ("R4-CRED-02", "pub fn net_pass_tool() {}\n"),
-            ("R4-API-CRED-06", "pub fn dump_sam(hive: &[u8]) { let _ = SysKey; }\n"),
-            ("R4-LEGACY-32", "#[command(name = \"WindowsMail\")]\npub struct W;\n"),
-            ("R4-LEGACY-32", "#[command(name = \"WinMailPass\")]\npub struct P;\n"),
+            (
+                "R4-API-CRED-06",
+                "pub fn dump_sam(hive: &[u8]) { let _ = SysKey; }\n",
+            ),
+            (
+                "R4-LEGACY-32",
+                "#[command(name = \"WindowsMail\")]\npub struct W;\n",
+            ),
+            (
+                "R4-LEGACY-32",
+                "#[command(name = \"WinMailPass\")]\npub struct P;\n",
+            ),
         ] {
             let d = TempDir::new().unwrap();
             write_file(d.path(), "suite/src/lib.rs", snippet);
@@ -1372,7 +1629,9 @@ fn main() {
     }
 }
 "#;
-        let exe = dir.path().join("hang_suite/target/release/hang_suite-mcp.exe");
+        let exe = dir
+            .path()
+            .join("hang_suite/target/release/hang_suite-mcp.exe");
         compile_mock_exe(src, &exe);
         let r = run_r4_scan(&R4ScanConfig {
             guap_root: dir.path().to_path_buf(),
@@ -1452,7 +1711,9 @@ mod tests {
             for i in 0..45 {
                 long_r4_test.push_str(&format!("    (\"harmless_pad_{i}\", \"pad\"),\n"));
             }
-            long_r4_test.push_str("    (\"cred2rust\", \"excluded\"),\n    (\"runasdate\", \"excluded\"),\n];\n");
+            long_r4_test.push_str(
+                "    (\"cred2rust\", \"excluded\"),\n    (\"runasdate\", \"excluded\"),\n];\n",
+            );
             long_r4_test.push_str(
                 r#"
 fn scan_text(label: &str, text: &str, violations: &mut Vec<String>) {
@@ -1471,7 +1732,11 @@ fn r4_workspace_check() {
 }
 "#,
             );
-            write_file(dir.path(), "fs2rust/crates/fs2rust-cli/tests/r4_compliance.rs", &long_r4_test);
+            write_file(
+                dir.path(),
+                "fs2rust/crates/fs2rust-cli/tests/r4_compliance.rs",
+                &long_r4_test,
+            );
 
             write_file(
                 dir.path(),
@@ -1840,7 +2105,11 @@ fn find_opening_keymaterial_tag(xml: &str) -> Option<&str> {
 "#,
         ] {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "net2rust/crates/net2rust-core/src/r4.rs", helper_src);
+            write_file(
+                dir.path(),
+                "net2rust/crates/net2rust-core/src/r4.rs",
+                helper_src,
+            );
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
@@ -2208,7 +2477,11 @@ mod tests {
             ),
         ] {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "net2rust/crates/net2rust-report/src/lib.rs", src);
+            write_file(
+                dir.path(),
+                "net2rust/crates/net2rust-report/src/lib.rs",
+                src,
+            );
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
@@ -2227,7 +2500,11 @@ mod tests {
             );
             let r_bad = scan_dir(dir_bad.path());
             assert!(
-                !r_bad.passed && r_bad.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
+                !r_bad.passed
+                    && r_bad
+                        .violations
+                        .iter()
+                        .any(|v| v.rule_id == "R4-API-CRED-05"),
                 "ADV-4G2 must fail R4-API-CRED-05, got {:?}",
                 r_bad.violations
             );
@@ -2669,7 +2946,12 @@ pub fn mask_wifi_payload(xml: &str) -> String {
                 b"MZ\x90\x00callCredEnumerateW\0dumpKeyMaterial\0extractProductKey\0callRunAsDate\0_ZN4evil14CredEnumerateW17h0123456789abcdefE\0_RNvCs123_4evil9RunAsDate\0",
             );
             let r_syn = scan_bins(dir_syn.path());
-            for expected in ["R4-API-CRED-01", "R4-API-CRED-05", "R4-CRED-02", "R4-INJ-01"] {
+            for expected in [
+                "R4-API-CRED-01",
+                "R4-API-CRED-05",
+                "R4-CRED-02",
+                "R4-INJ-01",
+            ] {
                 assert!(
                     r_syn.violations.iter().any(|v| v.rule_id == expected),
                     "B5 synthetic must fail {expected}, got {:?}",
@@ -2723,9 +3005,23 @@ fn main() {
     }
 }
 "#;
-            compile_mock_exe(cli_c1_c3_c6a, &dir.path().join("suite/target/release/suite.exe"));
-            let r1 = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
-            for expected in ["R4-INJ-01", "R4-CRED-02", "R4-LEGACY-36", "R4-API-CRED-01", "R4-LEGACY-01"] {
+            compile_mock_exe(
+                cli_c1_c3_c6a,
+                &dir.path().join("suite/target/release/suite.exe"),
+            );
+            let r1 = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
+            for expected in [
+                "R4-INJ-01",
+                "R4-CRED-02",
+                "R4-LEGACY-36",
+                "R4-API-CRED-01",
+                "R4-LEGACY-01",
+            ] {
                 assert!(
                     r1.violations.iter().any(|v| v.rule_id == expected),
                     "C1/C2/C3/C6a must fail {expected}, got {:?}",
@@ -2748,10 +3044,19 @@ fn main() {
     }
 }
 "#;
-            compile_mock_exe(chr_src, &dir_chr.path().join("chrome2rust/target/release/browser-cli.exe"));
+            compile_mock_exe(
+                chr_src,
+                &dir_chr
+                    .path()
+                    .join("chrome2rust/target/release/browser-cli.exe"),
+            );
             let r_chr = scan_cli(dir_chr.path());
             assert!(
-                !r_chr.passed && r_chr.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"),
+                !r_chr.passed
+                    && r_chr
+                        .violations
+                        .iter()
+                        .any(|v| v.rule_id == "R4-BASELINE-CHROME"),
                 "C1d/C4/C5a/C5b must fail R4-BASELINE-CHROME, got {:?}",
                 r_chr.violations
             );
@@ -2766,7 +3071,10 @@ fn main() {
     }
 }
 "#;
-            compile_mock_exe(c4b_src, &dir_c4b.path().join("suite/target/release/c4b-mcp.exe"));
+            compile_mock_exe(
+                c4b_src,
+                &dir_c4b.path().join("suite/target/release/c4b-mcp.exe"),
+            );
             let r_c4b = scan_cli(dir_c4b.path());
             assert!(
                 !r_c4b.passed && r_c4b.violations.iter().any(|v| v.rule_id == "R4-INJ-01"),
@@ -2968,7 +3276,11 @@ pub fn is_keymaterial_extracted(s: &str) -> String {
 
         for (label, code) in primary_fail_cases.drain(..) {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "net2rust/crates/net2rust-report/src/lib.rs", code);
+            write_file(
+                dir.path(),
+                "net2rust/crates/net2rust-report/src/lib.rs",
+                code,
+            );
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
@@ -3193,8 +3505,16 @@ fn main() {
     write_process_memory();
 }
 "#;
-            compile_v0_exe(v0_src, &dir.path().join("suite/target/debug/v0dbg.exe"), false);
-            compile_v0_exe(v0_src, &dir.path().join("suite/target/release/v0rel.exe"), true);
+            compile_v0_exe(
+                v0_src,
+                &dir.path().join("suite/target/debug/v0dbg.exe"),
+                false,
+            );
+            compile_v0_exe(
+                v0_src,
+                &dir.path().join("suite/target/release/v0rel.exe"),
+                true,
+            );
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
                 scan_binaries: true,
@@ -3202,7 +3522,13 @@ fn main() {
             })
             .unwrap();
             assert!(!r.passed, "N1a v0 binaries must fail");
-            for rid in ["R4-INJ-01", "R4-API-CRED-01", "R4-INJ-02", "R4-LEGACY-01", "R4-INJ-04"] {
+            for rid in [
+                "R4-INJ-01",
+                "R4-API-CRED-01",
+                "R4-INJ-02",
+                "R4-LEGACY-01",
+                "R4-INJ-04",
+            ] {
                 assert!(
                     r.violations.iter().any(|v| v.rule_id == rid),
                     "N1a missing {rid}, got {:?}",
@@ -3222,7 +3548,12 @@ fn main() {
                 scan_cli_mcp: false,
             })
             .unwrap();
-            for rid in ["R4-INJ-01", "R4-CRED-01", "R4-API-CRED-06", "R4-API-CRED-05"] {
+            for rid in [
+                "R4-INJ-01",
+                "R4-CRED-01",
+                "R4-API-CRED-06",
+                "R4-API-CRED-05",
+            ] {
                 assert!(
                     r.violations.iter().any(|v| v.rule_id == rid),
                     "N1b missing {rid}, got {:?}",
@@ -3231,14 +3562,22 @@ fn main() {
             }
             // Positive UI control: handleSysKey without secret context
             let dir_ok = TempDir::new().unwrap();
-            write_bytes(dir_ok.path(), "suite/target/debug/ui_ok.exe", b"MZ\x90\x00handleSysKey\0WM_SYSKEYDOWN\0");
+            write_bytes(
+                dir_ok.path(),
+                "suite/target/debug/ui_ok.exe",
+                b"MZ\x90\x00handleSysKey\0WM_SYSKEYDOWN\0",
+            );
             let r_ok = run_r4_scan(&R4ScanConfig {
                 guap_root: dir_ok.path().to_path_buf(),
                 scan_binaries: true,
                 scan_cli_mcp: false,
             })
             .unwrap();
-            assert!(r_ok.passed, "UI handleSysKey must pass, got {:?}", r_ok.violations);
+            assert!(
+                r_ok.passed,
+                "UI handleSysKey must pass, got {:?}",
+                r_ok.violations
+            );
         }
 
         // N2 / I5-ATK-9b: ProductKey bypasses fail, exact Win32 SDK forms pass
@@ -3278,7 +3617,11 @@ fn main() {
                 scan_cli_mcp: false,
             })
             .unwrap();
-            assert!(r_ok.passed, "Exact Win32 ProductKey SDK symbols must pass, got {:?}", r_ok.violations);
+            assert!(
+                r_ok.passed,
+                "Exact Win32 ProductKey SDK symbols must pass, got {:?}",
+                r_ok.violations
+            );
         }
 
         // N3 / I5-ATK-9a & N4 / I5-ATK-9c: keyMaterial symbols and tag lines
@@ -3320,22 +3663,34 @@ fn main() {
             // Positive controls for live net2rust.exe patterns
             let dir_ok = TempDir::new().unwrap();
             let mut ok_payload = b"MZ\x90\x00sanitize_wlan_profile_xml\0[REDACTED]\0".to_vec();
-            ok_payload.extend_from_slice(b"alloc::vec::in_place_collect::write_in_place_with_drop\0");
-            ok_payload.extend_from_slice(b"net2rust_report::extract_keymaterial_prefix::{closure_env#0}\0");
+            ok_payload
+                .extend_from_slice(b"alloc::vec::in_place_collect::write_in_place_with_drop\0");
+            ok_payload.extend_from_slice(
+                b"net2rust_report::extract_keymaterial_prefix::{closure_env#0}\0",
+            );
             ok_payload.extend_from_slice(b"net2rust_core::r4::OpeningKeyMaterialTag\0");
             ok_payload.extend_from_slice(b"net2rust_report::raw_keymaterial_name_end\0");
             ok_payload.extend_from_slice(b"<keyMaterial attr=\"a<br>b\"/>\0");
-            ok_payload.extend_from_slice(br"\u003ckeyMaterial\u003e[REDACTED]\u003c/keyMaterial\u003e");
+            ok_payload
+                .extend_from_slice(br"\u003ckeyMaterial\u003e[REDACTED]\u003c/keyMaterial\u003e");
             ok_payload.push(0);
             ok_payload.extend_from_slice(b"Active Wi-Fi Connection Info saved WLAN profile metadata with R4 keyMaterial redaction (mutating reorder/delete/toggle-auto actions gated)\0");
-            write_bytes(dir_ok.path(), "net2rust/target/debug/net2rust.exe", &ok_payload);
+            write_bytes(
+                dir_ok.path(),
+                "net2rust/target/debug/net2rust.exe",
+                &ok_payload,
+            );
             let r_ok = run_r4_scan(&R4ScanConfig {
                 guap_root: dir_ok.path().to_path_buf(),
                 scan_binaries: true,
                 scan_cli_mcp: false,
             })
             .unwrap();
-            assert!(r_ok.passed, "Legitimate net2rust.exe keyMaterial symbols/tags must pass, got {:?}", r_ok.violations);
+            assert!(
+                r_ok.passed,
+                "Legitimate net2rust.exe keyMaterial symbols/tags must pass, got {:?}",
+                r_ok.violations
+            );
         }
 
         // N5a / N5b: Diagnostics::Debug::WriteProcessMemory without VirtualAllocEx, raw_ffi_WriteProcessMemory, and real rustc PE calling WriteProcessMemory
@@ -3371,7 +3726,11 @@ fn main() {
             })
             .unwrap();
             assert!(
-                !r_n5b_syn.passed && r_n5b_syn.violations.iter().any(|v| v.rule_id == "R4-INJ-04"),
+                !r_n5b_syn.passed
+                    && r_n5b_syn
+                        .violations
+                        .iter()
+                        .any(|v| v.rule_id == "R4-INJ-04"),
                 "N5b synthetic raw_ffi_WriteProcessMemory must fail R4-INJ-04, got {:?}",
                 r_n5b_syn.violations
             );
@@ -3401,7 +3760,9 @@ fn main() {
 "#;
             compile_v0_exe(
                 pe_src,
-                &dir_pe.path().join("sys2rust/target/debug/sys2rust-win32.exe"),
+                &dir_pe
+                    .path()
+                    .join("sys2rust/target/debug/sys2rust-win32.exe"),
                 false,
             );
             let r_pe = run_r4_scan(&R4ScanConfig {
@@ -3445,9 +3806,19 @@ fn main() {
 }
 "#;
             compile_mock_exe(src, &dir.path().join("suite/target/release/adv5e.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
-                !r.passed && r.violations.iter().filter(|v| v.rule_id == "R4-INJ-01").count() >= 5,
+                !r.passed
+                    && r.violations
+                        .iter()
+                        .filter(|v| v.rule_id == "R4-INJ-01")
+                        .count()
+                        >= 5,
                 "ADV-5E polarity inversion must fail R4-INJ-01 on all 5 clauses, got {:?}",
                 r.violations
             );
@@ -3472,7 +3843,12 @@ fn main() {{
 "##
             );
             compile_mock_exe(&src, &dir.path().join("net2rust/target/release/km_bad.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
                 "I5-ATK-10a/C-N2 `{bad_desc}` must fail R4-API-CRED-05, got {:?}",
@@ -3510,11 +3886,30 @@ fn main() {
 }
 "##;
             compile_mock_exe(src, &dir.path().join("chrome2rust/target/release/c_n3.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(!r.passed, "I5-ATK-10b/C-N3 must fail");
-            assert!(r.violations.iter().any(|v| v.rule_id == "R4-INJ-01"), "missing R4-INJ-01 from default: {:?}", r.violations);
-            assert!(r.violations.iter().any(|v| v.rule_id == "R4-CRED-02"), "missing R4-CRED-02 from const: {:?}", r.violations);
-            assert!(r.violations.iter().any(|v| v.rule_id == "R4-BASELINE-CHROME"), "missing R4-BASELINE-CHROME from schema fields: {:?}", r.violations);
+            assert!(
+                r.violations.iter().any(|v| v.rule_id == "R4-INJ-01"),
+                "missing R4-INJ-01 from default: {:?}",
+                r.violations
+            );
+            assert!(
+                r.violations.iter().any(|v| v.rule_id == "R4-CRED-02"),
+                "missing R4-CRED-02 from const: {:?}",
+                r.violations
+            );
+            assert!(
+                r.violations
+                    .iter()
+                    .any(|v| v.rule_id == "R4-BASELINE-CHROME"),
+                "missing R4-BASELINE-CHROME from schema fields: {:?}",
+                r.violations
+            );
         }
 
         // C-N1: chrome2rust --help option flags, placeholders, subcommand descriptions, and --without-runasdate
@@ -3538,7 +3933,12 @@ fn main() {{
 "#
             );
             compile_mock_exe(&src, &dir.path().join("chrome2rust/target/release/cn1.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
                 !r.passed,
                 "C-N1 `{help_snippet}` must fail, got {:?}",
@@ -3563,9 +3963,19 @@ fn main() {
 }
 "##;
             compile_mock_exe(src, &dir.path().join("chrome2rust/target/release/cn4.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
-                !r.passed && r.violations.iter().filter(|v| v.rule_id == "R4-BASELINE-CHROME").count() >= 3,
+                !r.passed
+                    && r.violations
+                        .iter()
+                        .filter(|v| v.rule_id == "R4-BASELINE-CHROME")
+                        .count()
+                        >= 3,
                 "C-N4 mutated baseline tool must fail R4-BASELINE-CHROME, got {:?}",
                 r.violations
             );
@@ -3590,11 +4000,26 @@ fn main() {
     }
 }
 "#;
-            compile_mock_exe(clean_src, &dir.path().join("chrome2rust/target/release/chrome2rust.exe"));
-            compile_mock_exe(evil_dbg_src, &dir.path().join("chrome2rust/target/debug/chrome2rust.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            compile_mock_exe(
+                clean_src,
+                &dir.path()
+                    .join("chrome2rust/target/release/chrome2rust.exe"),
+            );
+            compile_mock_exe(
+                evil_dbg_src,
+                &dir.path().join("chrome2rust/target/debug/chrome2rust.exe"),
+            );
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
-                !r.passed && r.violations.iter().any(|v| v.path.to_string_lossy().contains("debug")),
+                !r.passed
+                    && r.violations
+                        .iter()
+                        .any(|v| v.path.to_string_lossy().contains("debug")),
                 "N6 debug binary must NOT be shadowed by release binary, got {:?}",
                 r.violations
             );
@@ -3642,9 +4067,20 @@ fn main() {
     }
 }
 "#;
-            compile_mock_exe(ok_src, &dir.path().join("chrome2rust/target/debug/chrome2rust.exe"));
-            compile_mock_exe(net_ok_src, &dir.path().join("net2rust/target/debug/net2rust-mcp.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            compile_mock_exe(
+                ok_src,
+                &dir.path().join("chrome2rust/target/debug/chrome2rust.exe"),
+            );
+            compile_mock_exe(
+                net_ok_src,
+                &dir.path().join("net2rust/target/debug/net2rust-mcp.exe"),
+            );
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
                 r.passed && r.violations.is_empty(),
                 "Positive CLI/MCP controls must pass cleanly, got {:?}",
@@ -3797,7 +4233,11 @@ pub fn sanitize_wlan_r4(s: &str) -> String {
             ),
         ] {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "net2rust/crates/net2rust-report/src/lib.rs", body);
+            write_file(
+                dir.path(),
+                "net2rust/crates/net2rust-report/src/lib.rs",
+                body,
+            );
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
@@ -3854,7 +4294,11 @@ pub fn sanitize_wlan_profile_xml(xml: &str) -> String {
             ),
         ] {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "net2rust/crates/net2rust-report/src/lib.rs", body);
+            write_file(
+                dir.path(),
+                "net2rust/crates/net2rust-report/src/lib.rs",
+                body,
+            );
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
@@ -3903,7 +4347,11 @@ pub fn sanitize_html_fragment_r4(s: &str) -> String {
             ),
         ] {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "net2rust/crates/net2rust-report/src/lib.rs", body);
+            write_file(
+                dir.path(),
+                "net2rust/crates/net2rust-report/src/lib.rs",
+                body,
+            );
             let r = scan_dir(dir.path());
             assert!(
                 !r.passed && r.violations.iter().any(|v| v.rule_id == "R4-API-CRED-05"),
@@ -3985,7 +4433,11 @@ pub const C: &str = concat!("steal", "ProductKey");
 pub const INC: &str = include_str!("inc_secret.txt");
 "#,
             );
-            write_file(dir.path(), "suite/src/inc_secret.txt", "WebBrowserPassView\n");
+            write_file(
+                dir.path(),
+                "suite/src/inc_secret.txt",
+                "WebBrowserPassView\n",
+            );
             write_file(
                 dir.path(),
                 "suite/manifest.json",
@@ -4193,16 +4645,21 @@ fn main() {
         ] {
             let hits = reg.scan_all_binary_matches(sym);
             assert!(
-                hits.iter().any(|(idx, _)| reg.rules[*idx].def.rule_id == expected_rule),
+                hits.iter()
+                    .any(|(idx, _)| reg.rules[*idx].def.rule_id == expected_rule),
                 "Binary symbol `{sym}` must trigger {expected_rule}, got {:?}",
-                hits.iter().map(|(i, m)| (reg.rules[*i].def.rule_id, m.as_str())).collect::<Vec<_>>()
+                hits.iter()
+                    .map(|(i, m)| (reg.rules[*i].def.rule_id, m.as_str()))
+                    .collect::<Vec<_>>()
             );
         }
 
         let v0_fn_type = "_RNvCs1_3fooFGu3_KC20stealSysKey_bad_fnE";
         let hits_v0 = reg.scan_all_binary_matches(v0_fn_type);
         assert!(
-            hits_v0.iter().any(|(idx, _)| reg.rules[*idx].def.rule_id == "R4-API-CRED-06"),
+            hits_v0
+                .iter()
+                .any(|(idx, _)| reg.rules[*idx].def.rule_id == "R4-API-CRED-06"),
             "v0 FGu[K] fn pointer symbol must parse cleanly and match R4-API-CRED-06, got {:?}",
             hits_v0.len()
         );
@@ -4211,10 +4668,22 @@ fn main() {
             (&b"MZ\x90\x00log_product_key\0"[..], "R4-CRED-02"),
             (&b"MZ\x90\x00store_product_key\0"[..], "R4-CRED-02"),
             (&b"MZ\x90\x00bypass_product_key\0"[..], "R4-CRED-02"),
-            (&b"MZ\x90\x00SHChangeProductKeyAsIDList_steal\0"[..], "R4-CRED-02"),
-            (&b"MZ\x90\x00collect_in_place<steal_keymaterial_x>\0"[..], "R4-API-CRED-05"),
-            (&b"MZ\x90\x00<keyMaterialType>plain</keyMaterialType>\0"[..], "R4-API-CRED-05"),
-            (&b"MZ\x90\x00net2rust_report::keymaterial_leak\0"[..], "R4-API-CRED-05"),
+            (
+                &b"MZ\x90\x00SHChangeProductKeyAsIDList_steal\0"[..],
+                "R4-CRED-02",
+            ),
+            (
+                &b"MZ\x90\x00collect_in_place<steal_keymaterial_x>\0"[..],
+                "R4-API-CRED-05",
+            ),
+            (
+                &b"MZ\x90\x00<keyMaterialType>plain</keyMaterialType>\0"[..],
+                "R4-API-CRED-05",
+            ),
+            (
+                &b"MZ\x90\x00net2rust_report::keymaterial_leak\0"[..],
+                "R4-API-CRED-05",
+            ),
         ] {
             let dir = TempDir::new().unwrap();
             write_bytes(dir.path(), "net2rust/target/debug/bad_bin.exe", sym_bytes);
@@ -4334,7 +4803,11 @@ fn main() {
             ("text_lea_wpm_str", build_min_pe64(true, false, true)),
         ] {
             let dir = TempDir::new().unwrap();
-            write_bytes(dir.path(), "net2rust/target/debug/net2rust-win32.exe", &pe_bytes);
+            write_bytes(
+                dir.path(),
+                "net2rust/target/debug/net2rust-win32.exe",
+                &pe_bytes,
+            );
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
                 scan_binaries: true,
@@ -4351,7 +4824,11 @@ fn main() {
         {
             let dir = TempDir::new().unwrap();
             let clean_pe = build_min_pe64(true, false, false);
-            write_bytes(dir.path(), "net2rust/target/debug/net2rust-win32.exe", &clean_pe);
+            write_bytes(
+                dir.path(),
+                "net2rust/target/debug/net2rust-win32.exe",
+                &clean_pe,
+            );
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
                 scan_binaries: true,
@@ -4383,7 +4860,11 @@ fn main() {
 
             let dir = TempDir::new().unwrap();
             let benign_bin = b"MZ\x90\x00_RNvMNtNtCs2Ja4erDm0Jl_4core3ptr7mut_ptrONtNtNtNtCs9gFLpZG4g8s_11windows_sys5Win322UI5Shell26SHChangeProductKeyAsIDList11write_bytesBK_\n_RNvMs1_NtNtCs2Ja4erDm0Jl_4core3mem12maybe_uninitINtB5_11MaybeUninitNtNtNtNtCslqCXXStpF1X_7windows5Win322UI5Shell26SHChangeProductKeyAsIDListE11assume_initB1b_\n_RNvXsqo_NtNtNtCslqCXXStpF1X_7windows5Win322UI5ShellNtB6_26SHChangeProductKeyAsIDListNtNtCs2Ja4erDm0Jl_4core7default7Default7default\n_RNvXs3e_NtNtNtCsf1vN8r4CQ7V_7winsafe4user8messages2wmNtB6_12WmSysKeyDownNtNtBa_6traits11MsgSendRecv15from_generic_wm\n";
-            write_bytes(dir.path(), "sys2rust/target/debug/clean_gui.exe", benign_bin);
+            write_bytes(
+                dir.path(),
+                "sys2rust/target/debug/clean_gui.exe",
+                benign_bin,
+            );
             let r = run_r4_scan(&R4ScanConfig {
                 guap_root: dir.path().to_path_buf(),
                 scan_binaries: true,
@@ -4417,11 +4898,26 @@ fn main() {
     fn regression_iter7_cli_and_mcp_probes_all_fail() {
         for (label, help_text) in [
             ("usage_line", "Usage: app <RUNASDATE>\n"),
-            ("bracket_pass", "Usage: app [OPTIONS]\n  [PASS]   Optional positional\n"),
-            ("variadic_angle", "Usage: app [OPTIONS]\n  <PASS>...   Variadic secret\n"),
-            ("variadic_bracket", "Usage: app [OPTIONS]\n  [PASS]...   Variadic secret\n"),
-            ("commands_comma_alias", "Commands:\n  x, pass   Helper command\n"),
-            ("deep_indent_cmd", "Commands:\n        runasdate   Deeply indented subcommand\n"),
+            (
+                "bracket_pass",
+                "Usage: app [OPTIONS]\n  [PASS]   Optional positional\n",
+            ),
+            (
+                "variadic_angle",
+                "Usage: app [OPTIONS]\n  <PASS>...   Variadic secret\n",
+            ),
+            (
+                "variadic_bracket",
+                "Usage: app [OPTIONS]\n  [PASS]...   Variadic secret\n",
+            ),
+            (
+                "commands_comma_alias",
+                "Commands:\n  x, pass   Helper command\n",
+            ),
+            (
+                "deep_indent_cmd",
+                "Commands:\n        runasdate   Deeply indented subcommand\n",
+            ),
         ] {
             let dir = TempDir::new().unwrap();
             let src = format!(
@@ -4429,7 +4925,12 @@ fn main() {
                 help_text
             );
             compile_mock_exe(&src, &dir.path().join("chrome2rust/target/debug/h.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
                 !r.passed,
                 "Help probe `{label}` must fail CLI scan, got {:?}",
@@ -4444,8 +4945,14 @@ fn main() {
             ("nope_includes", "Nope, includes RunAsDate."),
             ("optional_tool", "Optional RunAsDate runner."),
             ("comma_in_negation", "Does not, in fact, exclude RunAsDate."),
-            ("parens_in_negation", "Does not (in fact) exclude RunAsDate."),
-            ("question_mark", "Disabled RunAsDate? No, includes RunAsDate?"),
+            (
+                "parens_in_negation",
+                "Does not (in fact) exclude RunAsDate.",
+            ),
+            (
+                "question_mark",
+                "Disabled RunAsDate? No, includes RunAsDate?",
+            ),
             ("stop_excluding", "Stop excluding RunAsDate."),
             ("except_polarity_1", "Excludes everything except RunAsDate."),
             ("except_polarity_2", "Bans all tools except RunAsDate."),
@@ -4455,7 +4962,10 @@ fn main() {
             ("km_fetches", "fetches keyMaterial [REDACTED] entry."),
             ("km_transmits", "transmits keyMaterial [REDACTED] payload."),
             ("km_question", "redacts keyMaterial?"),
-            ("km_disabled_cross_clause", "redacts keyMaterial [REDACTED]; disabled in fast mode."),
+            (
+                "km_disabled_cross_clause",
+                "redacts keyMaterial [REDACTED]; disabled in fast mode.",
+            ),
         ] {
             let dir = TempDir::new().unwrap();
             let payload = format!(r#"[{{"name":"safe_tool","description":{:?}}}]"#, desc);
@@ -4463,7 +4973,12 @@ fn main() {
                 "fn main() {{ if std::env::args().any(|a| a == \"--tools\") {{ println!(\"{{}}\", {payload:?}); }} }}"
             );
             compile_mock_exe(&src, &dir.path().join("net2rust/target/debug/m.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
                 !r.passed,
                 "CLI/MCP negation/km probe `{label}` (`{desc}`) must fail, got {:?}",
@@ -4482,7 +4997,12 @@ fn main() {
 }
 "#;
             compile_mock_exe(src, &dir.path().join("net2rust/target/debug/ok.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
             assert!(
                 r.passed && r.violations.is_empty(),
                 "Positive Iter-7 CLI/MCP control must pass, got {:?}",
@@ -4752,7 +5272,11 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
             let dir = TempDir::new().unwrap();
             write_file(dir.path(), "net2rust/src/lib.rs", code);
             let r = scan_dir(dir.path());
-            assert!(!r.passed, "AST/FS probe `{label}` must fail, got {:?}", r.violations);
+            assert!(
+                !r.passed,
+                "AST/FS probe `{label}` must fail, got {:?}",
+                r.violations
+            );
         }
 
         // 3. I7-F / I7-G: nested concat!, include_bytes!, removed r4 suffix, python unsafe assert
@@ -4773,7 +5297,11 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
                 "chrome2rust/src/lib.rs",
                 r#"pub static PAYLOAD: &[u8] = include_bytes!("secret.bin");"#,
             );
-            write_bytes(dir.path(), "chrome2rust/src/secret.bin", b"\x00\xffRunAsDate\x00");
+            write_bytes(
+                dir.path(),
+                "chrome2rust/src/secret.bin",
+                b"\x00\xffRunAsDate\x00",
+            );
             let r = scan_dir(dir.path());
             assert!(!r.passed, "Binary include_bytes! RunAsDate must fail");
         }
@@ -4785,7 +5313,10 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
                 r#"pub const EX: &str = "exclude_r4: RunAsDate"; pub fn g() -> &'static str { EX }"#,
             );
             let r = scan_dir(dir.path());
-            assert!(!r.passed, "exclude_r4 suffix must not exempt RunAsDate in prod");
+            assert!(
+                !r.passed,
+                "exclude_r4 suffix must not exempt RunAsDate in prod"
+            );
         }
         {
             let dir = TempDir::new().unwrap();
@@ -4795,7 +5326,10 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
                 "def test_bad():\n    assert not launch_evil(\"RunAsDate\")\n",
             );
             let r = scan_dir(dir.path());
-            assert!(!r.passed, "Python unsafe assert-not call with RunAsDate must fail");
+            assert!(
+                !r.passed,
+                "Python unsafe assert-not call with RunAsDate must fail"
+            );
         }
     }
 
@@ -4808,35 +5342,80 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
             ("r7_a1_dumpsyskey2a", "fn dumpSysKey2a() {}"),
             ("r7_a1_cred2rust2a", "fn Cred2Rust2a() {}"),
             ("r7_a1_stealproductkey2b", "fn stealProductKey2b() {}"),
-            ("r7_a2_itanium_p", "pub const S: &str = \"_ZN3FooIPvE11run_as_dateEv\";"),
-            ("r7_a2_itanium_f", "pub const S: &str = \"_ZN3FooIFvvEE11run_as_dateEv\";"),
-            ("r7_a2_itanium_lambda", "pub const S: &str = \"_ZZN4evil3fooEvENKUlvE_11run_as_dateEv\";"),
-            ("r7_a2_itanium_array", "pub const S: &str = \"_ZN3FooIA4_iE11run_as_dateEv\";"),
-            ("r7_a2_itanium_abi", "pub const S: &str = \"_ZN3FooIB4testE11run_as_dateEv\";"),
-            ("r7_a3_mangled_non_gui_syskey", "pub const S: &str = \"_ZN14collect_syskey13handle_syskeyEv\";"),
-            ("r7_a3_winsafe_collect_syskey", "pub const S: &str = \"_ZN7winsafe7MsgSend14collect_syskeyEv\";"),
-            ("r7_a3_siphon_handle_syskey", "pub const S: &str = \"siphon::handle_syskey\";"),
+            (
+                "r7_a2_itanium_p",
+                "pub const S: &str = \"_ZN3FooIPvE11run_as_dateEv\";",
+            ),
+            (
+                "r7_a2_itanium_f",
+                "pub const S: &str = \"_ZN3FooIFvvEE11run_as_dateEv\";",
+            ),
+            (
+                "r7_a2_itanium_lambda",
+                "pub const S: &str = \"_ZZN4evil3fooEvENKUlvE_11run_as_dateEv\";",
+            ),
+            (
+                "r7_a2_itanium_array",
+                "pub const S: &str = \"_ZN3FooIA4_iE11run_as_dateEv\";",
+            ),
+            (
+                "r7_a2_itanium_abi",
+                "pub const S: &str = \"_ZN3FooIB4testE11run_as_dateEv\";",
+            ),
+            (
+                "r7_a3_mangled_non_gui_syskey",
+                "pub const S: &str = \"_ZN14collect_syskey13handle_syskeyEv\";",
+            ),
+            (
+                "r7_a3_winsafe_collect_syskey",
+                "pub const S: &str = \"_ZN7winsafe7MsgSend14collect_syskeyEv\";",
+            ),
+            (
+                "r7_a3_siphon_handle_syskey",
+                "pub const S: &str = \"siphon::handle_syskey\";",
+            ),
         ] {
             let dir_src = TempDir::new().unwrap();
             write_file(dir_src.path(), "chrome2rust/src/lib.rs", sym);
             let r_src = scan_dir(dir_src.path());
-            assert!(!r_src.passed, "Rules source probe `{label}` must fail, got {:?}", r_src.violations);
+            assert!(
+                !r_src.passed,
+                "Rules source probe `{label}` must fail, got {:?}",
+                r_src.violations
+            );
 
             let dir_bin = TempDir::new().unwrap();
             let mut pe = b"MZ\x90\x00".to_vec();
             pe.extend_from_slice(sym.as_bytes());
             pe.push(0);
             write_bytes(dir_bin.path(), "chrome2rust/target/debug/probe.exe", &pe);
-            let r_bin = run_r4_scan(&R4ScanConfig { guap_root: dir_bin.path().to_path_buf(), scan_binaries: true, scan_cli_mcp: false }).unwrap();
-            assert!(!r_bin.passed, "Rules binary probe `{label}` must fail, got {:?}", r_bin.violations);
+            let r_bin = run_r4_scan(&R4ScanConfig {
+                guap_root: dir_bin.path().to_path_buf(),
+                scan_binaries: true,
+                scan_cli_mcp: false,
+            })
+            .unwrap();
+            assert!(
+                !r_bin.passed,
+                "Rules binary probe `{label}` must fail, got {:?}",
+                r_bin.violations
+            );
         }
 
         // Positive control for trailing digits: x86, utf8, win32, e2e-r4 must stay clean (while Cred2Rust fails R4-CRED-01)
         {
             let dir = TempDir::new().unwrap();
-            write_file(dir.path(), "chrome2rust/src/lib.rs", "pub const OK: &str = \"x86 utf8 win32 e2e-r4 sha256\";");
+            write_file(
+                dir.path(),
+                "chrome2rust/src/lib.rs",
+                "pub const OK: &str = \"x86 utf8 win32 e2e-r4 sha256\";",
+            );
             let r = scan_dir(dir.path());
-            assert!(r.passed, "Positive control identifiers must pass, got {:?}", r.violations);
+            assert!(
+                r.passed,
+                "Positive control identifiers must pass, got {:?}",
+                r.violations
+            );
         }
 
         // 2. BIN_CAND_E6ZEROED_EVIL & R7-B1..B3
@@ -4862,35 +5441,104 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
 
         // 3. R7-C1..C3: CLI --help and MCP --tools evasions
         for (label, help_text) in [
-            ("r7_c2a_multiline_usage", "Usage:\n  chrome2rust --pass foo\n"),
-            ("r7_c2b_deep_indent_pass", "Commands:\n        pass    dump passwords\n"),
-            ("r7_c2c_deep_indent_keys", "Commands:\n        keys    dump keys\n"),
-            ("r7_c2d_prose_pass", "Use --pass to export browser credentials.\n"),
+            (
+                "r7_c2a_multiline_usage",
+                "Usage:\n  chrome2rust --pass foo\n",
+            ),
+            (
+                "r7_c2b_deep_indent_pass",
+                "Commands:\n        pass    dump passwords\n",
+            ),
+            (
+                "r7_c2c_deep_indent_keys",
+                "Commands:\n        keys    dump keys\n",
+            ),
+            (
+                "r7_c2d_prose_pass",
+                "Use --pass to export browser credentials.\n",
+            ),
             ("r7_c2e_aliases_pass", "  dump [aliases: pass]\n"),
             ("r7_c2f_help_runasdate2", "RunAsDate2 emulation support.\n"),
         ] {
             let dir = TempDir::new().unwrap();
-            let src = format!("fn main() {{ if std::env::args().any(|a| a == \"--help\") {{ print!({help_text:?}); }} }}");
+            let src = format!(
+                "fn main() {{ if std::env::args().any(|a| a == \"--help\") {{ print!({help_text:?}); }} }}"
+            );
             compile_mock_exe(&src, &dir.path().join("chrome2rust/target/debug/h.exe"));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
-            assert!(!r.passed, "R7-C2 help probe `{label}` must fail, got {:?}", r.violations);
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
+            assert!(
+                !r.passed,
+                "R7-C2 help probe `{label}` must fail, got {:?}",
+                r.violations
+            );
         }
 
         for (label, crate_dir, json_payload) in [
-            ("r7_c1a_when_disabled", "net2rust", r#"{"tools":[{"name":"t","description":"Excludes RunAsDate when disabled."}]}"#),
-            ("r7_c1b_is_false", "net2rust", r#"{"tools":[{"name":"t","description":"Excludes RunAsDate (is false)."}]}"#),
-            ("r7_c1d_unless_enabled", "net2rust", r#"{"tools":[{"name":"t","description":"Excludes RunAsDate, unless enabled."}]}"#),
-            ("r7_c1g_keeps_unmasked", "net2rust", r#"{"tools":[{"name":"t","description":"keeps keyMaterial unmasked in output."}]}"#),
-            ("r7_c3a_mcp_instructions", "net2rust", r#"{"instructions":"Excludes RunAsDate when disabled.","tools":[]}"#),
-            ("r7_c3b_mcp_output_schema", "net2rust", r#"{"tools":[{"name":"t","description":"ok","outputSchema":{"type":"object","description":"Excludes RunAsDate (is false)."}}]}"#),
-            ("r7_c3c_mcp_server_info", "net2rust", r#"{"serverInfo":{"name":"s","description":"Excludes RunAsDate when disabled."},"tools":[]}"#),
-            ("r7_c3d_mcp_chrome_instructions", "chrome2rust", r#"{"instructions":"Pass --pass or keys to dump.","tools":[]}"#),
+            (
+                "r7_c1a_when_disabled",
+                "net2rust",
+                r#"{"tools":[{"name":"t","description":"Excludes RunAsDate when disabled."}]}"#,
+            ),
+            (
+                "r7_c1b_is_false",
+                "net2rust",
+                r#"{"tools":[{"name":"t","description":"Excludes RunAsDate (is false)."}]}"#,
+            ),
+            (
+                "r7_c1d_unless_enabled",
+                "net2rust",
+                r#"{"tools":[{"name":"t","description":"Excludes RunAsDate, unless enabled."}]}"#,
+            ),
+            (
+                "r7_c1g_keeps_unmasked",
+                "net2rust",
+                r#"{"tools":[{"name":"t","description":"keeps keyMaterial unmasked in output."}]}"#,
+            ),
+            (
+                "r7_c3a_mcp_instructions",
+                "net2rust",
+                r#"{"instructions":"Excludes RunAsDate when disabled.","tools":[]}"#,
+            ),
+            (
+                "r7_c3b_mcp_output_schema",
+                "net2rust",
+                r#"{"tools":[{"name":"t","description":"ok","outputSchema":{"type":"object","description":"Excludes RunAsDate (is false)."}}]}"#,
+            ),
+            (
+                "r7_c3c_mcp_server_info",
+                "net2rust",
+                r#"{"serverInfo":{"name":"s","description":"Excludes RunAsDate when disabled."},"tools":[]}"#,
+            ),
+            (
+                "r7_c3d_mcp_chrome_instructions",
+                "chrome2rust",
+                r#"{"instructions":"Pass --pass or keys to dump.","tools":[]}"#,
+            ),
         ] {
             let dir = TempDir::new().unwrap();
-            let src = format!("fn main() {{ if std::env::args().any(|a| a == \"--tools\") {{ println!(\"{{}}\", {json_payload:?}); }} }}");
-            compile_mock_exe(&src, &dir.path().join(format!("{crate_dir}/target/debug/m.exe")));
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: false, scan_cli_mcp: true }).unwrap();
-            assert!(!r.passed, "R7-C1/C3 MCP probe `{label}` must fail, got {:?}", r.violations);
+            let src = format!(
+                "fn main() {{ if std::env::args().any(|a| a == \"--tools\") {{ println!(\"{{}}\", {json_payload:?}); }} }}"
+            );
+            compile_mock_exe(
+                &src,
+                &dir.path().join(format!("{crate_dir}/target/debug/m.exe")),
+            );
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: false,
+                scan_cli_mcp: true,
+            })
+            .unwrap();
+            assert!(
+                !r.passed,
+                "R7-C1/C3 MCP probe `{label}` must fail, got {:?}",
+                r.violations
+            );
         }
     }
 }

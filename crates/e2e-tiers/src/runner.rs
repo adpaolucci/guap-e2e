@@ -354,7 +354,10 @@ fn parse_cargo_test_passed_count(stdout: &str) -> anyhow::Result<usize> {
             total_passed += passed_num;
         }
     }
-    ensure!(saw_summary, "cargo test output missing 'test result:' summary");
+    ensure!(
+        saw_summary,
+        "cargo test output missing 'test result:' summary"
+    );
     Ok(total_passed)
 }
 
@@ -404,7 +407,10 @@ fn run_guap_kit_cargo_baseline(
         "guap-kit/Cargo.toml missing license = \"Apache-2.0\""
     );
     let fg = fg_for_check(chk)?;
-    let crate_toml_path = gk_dir.join("crates").join(fg.domain_crate).join("Cargo.toml");
+    let crate_toml_path = gk_dir
+        .join("crates")
+        .join(fg.domain_crate)
+        .join("Cargo.toml");
     let crate_toml = std::fs::read_to_string(&crate_toml_path)
         .with_context(|| format!("missing {}", crate_toml_path.display()))?;
     ensure!(
@@ -421,7 +427,8 @@ fn run_guap_kit_cargo_baseline(
     }
 
     if !cfg.skip_cargo_build {
-        let out = session.run_cargo_cached(&gk_dir, &["check", "--offline", "-p", fg.domain_crate])?;
+        let out =
+            session.run_cargo_cached(&gk_dir, &["check", "--offline", "-p", fg.domain_crate])?;
         ensure!(
             out.success(),
             "cargo check --offline -p {} failed: {}",
@@ -431,7 +438,13 @@ fn run_guap_kit_cargo_baseline(
         if fg.domain_crate == "guap-gui-win32" {
             let headless = session.run_cargo_cached(
                 &gk_dir,
-                &["check", "--offline", "-p", "guap-gui-win32", "--no-default-features"],
+                &[
+                    "check",
+                    "--offline",
+                    "-p",
+                    "guap-gui-win32",
+                    "--no-default-features",
+                ],
             )?;
             ensure!(
                 headless.success(),
@@ -464,7 +477,17 @@ fn run_guap_kit_cargo_test(
     let (args, min_tests): (&[&str], usize) = match fg.domain_crate {
         "guap-table" => (&["test", "--offline", "-p", "guap-table"], 8),
         "guap-export" => (&["test", "--offline", "-p", "guap-export"], 6),
-        "guap-gui-win32" => (&["test", "--offline", "-p", "guap-gui-win32", "--no-default-features", "--lib"], 2),
+        "guap-gui-win32" => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-gui-win32",
+                "--no-default-features",
+                "--lib",
+            ],
+            2,
+        ),
         "guap-gui-iced" => (&["test", "--offline", "-p", "guap-gui-iced"], 1),
         "guap-mcp" => (&["test", "--offline", "-p", "guap-mcp"], 5),
         other => bail!("unknown guap-kit crate {other}"),
@@ -518,9 +541,17 @@ fn run_guap_kit_contract_scan(
             "pub fn neutralize_spreadsheet_cell",
             "pub fn compute_merkle_root_sha256",
         ],
-        "guap-gui-win32" => &["pub struct Win32TableHostConfig", "pub struct Win32GridState"],
+        "guap-gui-win32" => &[
+            "pub struct Win32TableHostConfig",
+            "pub struct Win32GridState",
+        ],
         "guap-gui-iced" => &["pub struct IcedDataGrid", "pub enum DataGridMessage"],
-        "guap-mcp" => &["\"2024-11-05\"", "-32003", "pub enum PolicyMode", "pub trait ActionCommand"],
+        "guap-mcp" => &[
+            "\"2024-11-05\"",
+            "-32003",
+            "pub enum PolicyMode",
+            "pub trait ActionCommand",
+        ],
         _ => &[],
     };
     for &decl in required_decls {
@@ -567,42 +598,92 @@ fn run_guap_kit_functional_a(
         "guap-table" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "query_10k"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-table",
+                    "--test",
+                    "synthetic_10k",
+                    "query_10k",
+                ],
                 2,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-table 10k query/filter/sort tests passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-table 10k query/filter/sort tests passed ({n})"
+            )))
         }
         "guap-export" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "csv_rfc4180_and_formula_neutralization"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-export",
+                    "--test",
+                    "export_and_merkle",
+                    "csv_rfc4180_and_formula_neutralization",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-export CSV RFC-4180 + formula neutralization passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-export CSV RFC-4180 + formula neutralization passed ({n})"
+            )))
         }
         "guap-gui-win32" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-gui-win32", "--no-default-features", "--lib", "win32_state_25k"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-gui-win32",
+                    "--no-default-features",
+                    "--lib",
+                    "win32_state_25k",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-gui-win32 25k state/filter/sort/export passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-gui-win32 25k state/filter/sort/export passed ({n})"
+            )))
         }
         "guap-gui-iced" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-gui-iced", "--test", "grid_headless", "iced_grid_25k"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-gui-iced",
+                    "--test",
+                    "grid_headless",
+                    "iced_grid_25k",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-gui-iced 25k paginated headless grid passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-gui-iced 25k paginated headless grid passed ({n})"
+            )))
         }
         "guap-mcp" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "protocol_initialize"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-mcp",
+                    "--test",
+                    "mcp_contract",
+                    "protocol_initialize",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-mcp 2024-11-05 handshake/ping/notifications passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-mcp 2024-11-05 handshake/ping/notifications passed ({n})"
+            )))
         }
         other => bail!("unknown guap-kit crate {other}"),
     }
@@ -623,42 +704,91 @@ fn run_guap_kit_functional_b(
         "guap-table" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "table_text_compare_10k_diff"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-table",
+                    "--test",
+                    "synthetic_10k",
+                    "table_text_compare_10k_diff",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-table TableTextCompare 10k diff passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-table TableTextCompare 10k diff passed ({n})"
+            )))
         }
         "guap-export" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "merkle_sha256_and_sha512"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-export",
+                    "--test",
+                    "export_and_merkle",
+                    "merkle_sha256_and_sha512",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-export SHA-256/512 Merkle vectors passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-export SHA-256/512 Merkle vectors passed ({n})"
+            )))
         }
         "guap-gui-win32" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-gui-win32", "--no-default-features", "--lib", "utf16_buf_write"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-gui-win32",
+                    "--no-default-features",
+                    "--lib",
+                    "utf16_buf_write",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-gui-win32 UTF-16 surrogate buffer test passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-gui-win32 UTF-16 surrogate buffer test passed ({n})"
+            )))
         }
         "guap-gui-iced" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-gui-iced", "--test", "grid_headless"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-gui-iced",
+                    "--test",
+                    "grid_headless",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-gui-iced TableProvider interop passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-gui-iced TableProvider interop passed ({n})"
+            )))
         }
         "guap-mcp" => {
             let n = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "tools_list_annotations"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-mcp",
+                    "--test",
+                    "mcp_contract",
+                    "tools_list_annotations",
+                ],
                 1,
             )?;
-            Ok(CheckOutcome::Pass(format!("guap-mcp tools/list annotations & TableProvider passed ({n})")))
+            Ok(CheckOutcome::Pass(format!(
+                "guap-mcp tools/list annotations & TableProvider passed ({n})"
+            )))
         }
         other => bail!("unknown guap-kit crate {other}"),
     }
@@ -677,33 +807,197 @@ fn run_guap_kit_boundary(
     }
     let fg = fg_for_check(chk)?;
     let (args, min_passed): (&[&str], usize) = match (fg.domain_crate, tag) {
-        ("guap-table", "empty_schema") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "table_text_compare_rejects_duplicate_left_column_ids"], 1),
-        ("guap-table", "invalid_query") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "guap_query_rejects_standalone_amp_pipe_and_excessive_nesting"], 1),
-        ("guap-table", "injection_escape") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "filter_numeric_comparison_preserves_precision_above_2_pow_53"], 1),
-        ("guap-table", "missing_or_headless") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "cell_value_ord_consistency_and_nan"], 1),
-        ("guap-table", "rpc_policy_boundary") => (&["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k"], 8),
+        ("guap-table", "empty_schema") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-table",
+                "--test",
+                "synthetic_10k",
+                "table_text_compare_rejects_duplicate_left_column_ids",
+            ],
+            1,
+        ),
+        ("guap-table", "invalid_query") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-table",
+                "--test",
+                "synthetic_10k",
+                "guap_query_rejects_standalone_amp_pipe_and_excessive_nesting",
+            ],
+            1,
+        ),
+        ("guap-table", "injection_escape") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-table",
+                "--test",
+                "synthetic_10k",
+                "filter_numeric_comparison_preserves_precision_above_2_pow_53",
+            ],
+            1,
+        ),
+        ("guap-table", "missing_or_headless") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-table",
+                "--test",
+                "synthetic_10k",
+                "cell_value_ord_consistency_and_nan",
+            ],
+            1,
+        ),
+        ("guap-table", "rpc_policy_boundary") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-table",
+                "--test",
+                "synthetic_10k",
+            ],
+            8,
+        ),
 
-        ("guap-export", "empty_schema") => (&["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "tsv_sanitizes_embedded_tabs_and_newlines"], 1),
-        ("guap-export", "invalid_query") => (&["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "json_and_jsonl_roundtrip"], 1),
-        ("guap-export", "injection_escape") => (&["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "html_horizontal_and_vertical_csp_and_xss_escaping"], 1),
-        ("guap-export", "missing_or_headless") => (&["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "markdown_escapes_pipes_and_newlines"], 1),
-        ("guap-export", "rpc_policy_boundary") => (&["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle"], 6),
+        ("guap-export", "empty_schema") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-export",
+                "--test",
+                "export_and_merkle",
+                "tsv_sanitizes_embedded_tabs_and_newlines",
+            ],
+            1,
+        ),
+        ("guap-export", "invalid_query") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-export",
+                "--test",
+                "export_and_merkle",
+                "json_and_jsonl_roundtrip",
+            ],
+            1,
+        ),
+        ("guap-export", "injection_escape") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-export",
+                "--test",
+                "export_and_merkle",
+                "html_horizontal_and_vertical_csp_and_xss_escaping",
+            ],
+            1,
+        ),
+        ("guap-export", "missing_or_headless") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-export",
+                "--test",
+                "export_and_merkle",
+                "markdown_escapes_pipes_and_newlines",
+            ],
+            1,
+        ),
+        ("guap-export", "rpc_policy_boundary") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-export",
+                "--test",
+                "export_and_merkle",
+            ],
+            6,
+        ),
 
-        ("guap-gui-win32", _) => (&["test", "--offline", "-p", "guap-gui-win32", "--no-default-features", "--lib"], 2),
-        ("guap-gui-iced", _) => (&["test", "--offline", "-p", "guap-gui-iced", "--test", "grid_headless"], 1),
+        ("guap-gui-win32", _) => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-gui-win32",
+                "--no-default-features",
+                "--lib",
+            ],
+            2,
+        ),
+        ("guap-gui-iced", _) => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-gui-iced",
+                "--test",
+                "grid_headless",
+            ],
+            1,
+        ),
 
-        ("guap-mcp", "empty_schema") | ("guap-mcp", "invalid_query") => {
-            (&["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "protocol_initialize_ping_notifications_and_errors"], 1)
-        }
-        ("guap-mcp", "injection_escape") => {
-            (&["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "stdio_frame_loop_processes_stream"], 1)
-        }
-        ("guap-mcp", "missing_or_headless") => {
-            (&["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "non_read_only_table_provider_exposes_confirm_destructive_and_enforces_32003"], 1)
-        }
-        ("guap-mcp", "rpc_policy_boundary") => {
-            (&["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "policy_gates_enforce_32003_and_allow_confirmed_mutations"], 1)
-        }
+        ("guap-mcp", "empty_schema") | ("guap-mcp", "invalid_query") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-mcp",
+                "--test",
+                "mcp_contract",
+                "protocol_initialize_ping_notifications_and_errors",
+            ],
+            1,
+        ),
+        ("guap-mcp", "injection_escape") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-mcp",
+                "--test",
+                "mcp_contract",
+                "stdio_frame_loop_processes_stream",
+            ],
+            1,
+        ),
+        ("guap-mcp", "missing_or_headless") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-mcp",
+                "--test",
+                "mcp_contract",
+                "non_read_only_table_provider_exposes_confirm_destructive_and_enforces_32003",
+            ],
+            1,
+        ),
+        ("guap-mcp", "rpc_policy_boundary") => (
+            &[
+                "test",
+                "--offline",
+                "-p",
+                "guap-mcp",
+                "--test",
+                "mcp_contract",
+                "policy_gates_enforce_32003_and_allow_confirmed_mutations",
+            ],
+            1,
+        ),
         _ => bail!("unknown guap-kit boundary ({}, {tag})", fg.domain_crate),
     };
     let n = run_guap_kit_cargo_test_checked(session, args, min_passed)?;
@@ -733,7 +1027,13 @@ fn run_e2e_export_verifier_self_check(cfg: &TierRunConfig) -> anyhow::Result<Che
     }
     let verified_rows = verify_csv_formula_neutralization(
         csv_out.as_bytes(),
-        &["=cmd|'/C calc'!A0", "+1234+5678", "-5678", "@SUM(1,2)", "\tleading_tab"],
+        &[
+            "=cmd|'/C calc'!A0",
+            "+1234+5678",
+            "-5678",
+            "@SUM(1,2)",
+            "\tleading_tab",
+        ],
     )?;
     let p1 = cfg.fixtures.sys_fs_dir.join("sample_data.csv");
     let manifest = build_sample_custody_manifest("guap-e2e", "0.1.0", &[&p1])?;
@@ -782,7 +1082,9 @@ fn run_e2e_negative_self_check(tag: &str, cfg: &TierRunConfig) -> anyhow::Result
                 verify_custody_manifest(&tampered, false).is_err(),
                 "tampered leaf sha256 unexpectedly passed"
             );
-            Ok(CheckOutcome::Pass("tampered Merkle leaf SHA-256 rejected".into()))
+            Ok(CheckOutcome::Pass(
+                "tampered Merkle leaf SHA-256 rejected".into(),
+            ))
         }
         "tampered_merkle_root512" => {
             let bytes = build_sample_custody_manifest("guap-e2e", "0.1.0", &[&p1, &p2])?;
@@ -793,7 +1095,9 @@ fn run_e2e_negative_self_check(tag: &str, cfg: &TierRunConfig) -> anyhow::Result
                 verify_custody_manifest(&tampered, false).is_err(),
                 "tampered merkle_root_sha512 unexpectedly passed"
             );
-            Ok(CheckOutcome::Pass("tampered Merkle root SHA-512 rejected".into()))
+            Ok(CheckOutcome::Pass(
+                "tampered Merkle root SHA-512 rejected".into(),
+            ))
         }
         "unneutralized_csv" => {
             let raw = std::fs::read(cfg.fixtures.sys_fs_dir.join("sample_data.csv"))?;
@@ -801,16 +1105,22 @@ fn run_e2e_negative_self_check(tag: &str, cfg: &TierRunConfig) -> anyhow::Result
                 verify_csv_formula_neutralization(&raw, &[]).is_err(),
                 "unneutralized sample_data.csv unexpectedly passed"
             );
-            Ok(CheckOutcome::Pass("unneutralized =cmd| CSV injection rejected".into()))
+            Ok(CheckOutcome::Pass(
+                "unneutralized =cmd| CSV injection rejected".into(),
+            ))
         }
         "leading_space_formula" => {
             let evil = b"col\r\n   =HYPERLINK(\"http://bad\",\"click\")\r\n";
-            ensure!(is_formula_dangerous("   =HYPERLINK(\"http://bad\",\"click\")"));
+            ensure!(is_formula_dangerous(
+                "   =HYPERLINK(\"http://bad\",\"click\")"
+            ));
             ensure!(
                 verify_csv_formula_neutralization(evil, &[]).is_err(),
                 "leading whitespace formula unexpectedly passed"
             );
-            Ok(CheckOutcome::Pass("leading whitespace + formula injection rejected".into()))
+            Ok(CheckOutcome::Pass(
+                "leading whitespace + formula injection rejected".into(),
+            ))
         }
         "bad_total_bytes" => {
             let bytes = build_sample_custody_manifest("guap-e2e", "0.1.0", &[&p1])?;
@@ -821,7 +1131,9 @@ fn run_e2e_negative_self_check(tag: &str, cfg: &TierRunConfig) -> anyhow::Result
                 verify_custody_manifest(&tampered, false).is_err(),
                 "mismatched total_bytes unexpectedly passed"
             );
-            Ok(CheckOutcome::Pass("CustodyManifest total_bytes mismatch rejected".into()))
+            Ok(CheckOutcome::Pass(
+                "CustodyManifest total_bytes mismatch rejected".into(),
+            ))
         }
         _ => bail!("unknown negative self-check tag {tag}"),
     }
@@ -849,7 +1161,12 @@ fn stage_mail_nk2_file() -> anyhow::Result<TempDir> {
     };
 
     for (nick, name, email, weight) in [
-        ("Alice Vance", "Alice Vance", "alice.vance@example.org", 500u64),
+        (
+            "Alice Vance",
+            "Alice Vance",
+            "alice.vance@example.org",
+            500u64,
+        ),
         ("Bob Chen", "Bob Chen", "bob.chen@example.org", 250u64),
     ] {
         out.extend_from_slice(&6u32.to_le_bytes());
@@ -881,7 +1198,11 @@ fn stage_forensics_compat_dir(fixtures: &MaterializedFixtures) -> anyhow::Result
         tmp.path().join("staged_vss_catalog.json"),
         r#"[{"shadow_copy_name":"HarddiskVolumeShadowCopy1","device_object":"\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy1","volume_name":"C:\\","created_time":"2026-11-22T14:30:00Z","snapshot_id":"{11111111-2222-3333-4444-555555555555}","originating_machine":"WORKSTATION","service_machine":"WORKSTATION","provider_id":"{b5946137-7b9f-4925-af80-51abd60b20d5}"}]"#,
     )?;
-    let prev_user = tmp.path().join("staged_previous_dir").join("Users").join("Test");
+    let prev_user = tmp
+        .path()
+        .join("staged_previous_dir")
+        .join("Users")
+        .join("Test");
     std::fs::create_dir_all(&prev_user)?;
     std::fs::write(prev_user.join("sample.txt"), b"shadow copy test file\n")?;
 
@@ -895,8 +1216,14 @@ fn stage_forensics_compat_dir(fixtures: &MaterializedFixtures) -> anyhow::Result
         tmp.path().join("staged_security_center2.json"),
         serde_json::to_vec_pretty(sc2)?,
     )?;
-    std::fs::write(tmp.path().join("staged_SRUDB.dat"), build_staged_srudb_ese())?;
-    std::fs::write(tmp.path().join("staged_DataStore.edb"), build_staged_datastore_ese())?;
+    std::fs::write(
+        tmp.path().join("staged_SRUDB.dat"),
+        build_staged_srudb_ese(),
+    )?;
+    std::fs::write(
+        tmp.path().join("staged_DataStore.edb"),
+        build_staged_datastore_ese(),
+    )?;
     Ok(tmp)
 }
 
@@ -936,7 +1263,15 @@ fn ese_encode_record(fixed_cols: &[(u16, &[u8])], var_cols: &[(u16, &[u8])]) -> 
     out
 }
 
-fn ese_msys_row(objid_table: i32, obj_type: i16, id: i32, coltyp_or_pgno: i32, size: i32, locale: i32, name: &str) -> Vec<u8> {
+fn ese_msys_row(
+    objid_table: i32,
+    obj_type: i16,
+    id: i32,
+    coltyp_or_pgno: i32,
+    size: i32,
+    locale: i32,
+    name: &str,
+) -> Vec<u8> {
     let o = objid_table.to_le_bytes();
     let t = obj_type.to_le_bytes();
     let i = id.to_le_bytes();
@@ -948,8 +1283,17 @@ fn ese_msys_row(objid_table: i32, obj_type: i16, id: i32, coltyp_or_pgno: i32, s
     let z2 = 0i16.to_le_bytes();
     ese_encode_record(
         &[
-            (1, &o), (2, &t), (3, &i), (4, &c), (5, &s),
-            (6, &z4), (7, &l), (8, &r1), (9, &z2), (10, &z4), (11, &z2),
+            (1, &o),
+            (2, &t),
+            (3, &i),
+            (4, &c),
+            (5, &s),
+            (6, &z4),
+            (7, &l),
+            (8, &r1),
+            (9, &z2),
+            (10, &z4),
+            (11, &z2),
         ],
         &[(128, name.as_bytes())],
     )
@@ -1013,7 +1357,10 @@ fn ese_finalize_db(total_logical_pages: u32) -> Vec<u8> {
 }
 
 fn utf16le_nul_bytes(s: &str) -> Vec<u8> {
-    s.encode_utf16().chain([0]).flat_map(u16::to_le_bytes).collect()
+    s.encode_utf16()
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect()
 }
 
 fn build_staged_srudb_ese() -> Vec<u8> {
@@ -1068,8 +1415,14 @@ fn build_staged_srudb_ese() -> Vec<u8> {
     let app_blob = utf16le_nul_bytes(r"\Device\HarddiskVolume3\Tools\forensics_sample.exe");
     let sid_blob: [u8; 12] = [1, 1, 0, 0, 0, 0, 0, 5, 18, 0, 0, 0];
     let id_rows = vec![
-        ese_encode_record(&[(1, &[0u8]), (2, &1i32.to_le_bytes())], &[(128, &app_blob)]),
-        ese_encode_record(&[(1, &[3u8]), (2, &2i32.to_le_bytes())], &[(128, &sid_blob)]),
+        ese_encode_record(
+            &[(1, &[0u8]), (2, &1i32.to_le_bytes())],
+            &[(128, &app_blob)],
+        ),
+        ese_encode_record(
+            &[(1, &[3u8]), (2, &2i32.to_le_bytes())],
+            &[(128, &sid_blob)],
+        ),
     ];
     ese_write_leaf_page(&mut buf, 5, 10, 0x2003, &id_rows);
 
@@ -1081,9 +1434,15 @@ fn build_staged_srudb_ese() -> Vec<u8> {
     let z4 = 0i32.to_le_bytes();
     let net_rows = vec![ese_encode_record(
         &[
-            (1, &app1), (2, &ts), (3, &app1), (4, &usr2),
-            (5, &luid), (6, &prof), (7, &z4),
-            (8, &1_048_576i64.to_le_bytes()), (9, &262_144i64.to_le_bytes()),
+            (1, &app1),
+            (2, &ts),
+            (3, &app1),
+            (4, &usr2),
+            (5, &luid),
+            (6, &prof),
+            (7, &z4),
+            (8, &1_048_576i64.to_le_bytes()),
+            (9, &262_144i64.to_le_bytes()),
         ],
         &[],
     )];
@@ -1091,11 +1450,18 @@ fn build_staged_srudb_ese() -> Vec<u8> {
 
     let app_rows = vec![ese_encode_record(
         &[
-            (1, &ts), (2, &app1), (3, &usr2),
-            (4, &500_000_000i64.to_le_bytes()), (5, &25_000_000i64.to_le_bytes()),
-            (6, &120i32.to_le_bytes()), (7, &65_536i64.to_le_bytes()),
-            (8, &4_096i64.to_le_bytes()), (9, &16_384i64.to_le_bytes()),
-            (10, &1_024i64.to_le_bytes()), (11, &320i32.to_le_bytes()), (12, &45i32.to_le_bytes()),
+            (1, &ts),
+            (2, &app1),
+            (3, &usr2),
+            (4, &500_000_000i64.to_le_bytes()),
+            (5, &25_000_000i64.to_le_bytes()),
+            (6, &120i32.to_le_bytes()),
+            (7, &65_536i64.to_le_bytes()),
+            (8, &4_096i64.to_le_bytes()),
+            (9, &16_384i64.to_le_bytes()),
+            (10, &1_024i64.to_le_bytes()),
+            (11, &320i32.to_le_bytes()),
+            (12, &45i32.to_le_bytes()),
         ],
         &[],
     )];
@@ -1103,9 +1469,13 @@ fn build_staged_srudb_ese() -> Vec<u8> {
 
     let energy_rows = vec![ese_encode_record(
         &[
-            (1, &ts), (2, &app1), (3, &usr2),
-            (4, &10_000i64.to_le_bytes()), (5, &6_000i64.to_le_bytes()),
-            (6, &2_000i64.to_le_bytes()), (7, &300i32.to_le_bytes()),
+            (1, &ts),
+            (2, &app1),
+            (3, &usr2),
+            (4, &10_000i64.to_le_bytes()),
+            (5, &6_000i64.to_le_bytes()),
+            (6, &2_000i64.to_le_bytes()),
+            (7, &300i32.to_le_bytes()),
         ],
         &[],
     )];
@@ -1113,8 +1483,13 @@ fn build_staged_srudb_ese() -> Vec<u8> {
 
     let conn_rows = vec![ese_encode_record(
         &[
-            (1, &ts), (2, &app1), (3, &usr2), (4, &luid), (5, &prof),
-            (6, &3600i32.to_le_bytes()), (7, &133_751_856_000_000_000i64.to_le_bytes()),
+            (1, &ts),
+            (2, &app1),
+            (3, &usr2),
+            (4, &luid),
+            (5, &prof),
+            (6, &3600i32.to_le_bytes()),
+            (7, &133_751_856_000_000_000i64.to_le_bytes()),
         ],
         &[],
     )];
@@ -1158,8 +1533,12 @@ fn build_staged_datastore_ese() -> Vec<u8> {
 
     let hist_rows = vec![ese_encode_record(
         &[
-            (1, &1i32.to_le_bytes()), (2, &2i32.to_le_bytes()), (3, &1i32.to_le_bytes()),
-            (4, &0i32.to_le_bytes()), (5, &0i32.to_le_bytes()), (6, &45600.5f64.to_le_bytes()),
+            (1, &1i32.to_le_bytes()),
+            (2, &2i32.to_le_bytes()),
+            (3, &1i32.to_le_bytes()),
+            (4, &0i32.to_le_bytes()),
+            (5, &0i32.to_le_bytes()),
+            (6, &45600.5f64.to_le_bytes()),
         ],
         &[(128, &guid), (129, &title), (130, &desc), (131, &client)],
     )];
@@ -1215,9 +1594,13 @@ fn stage_sys2rust_gac_root(fixtures: &MaterializedFixtures) -> anyhow::Result<Te
     Ok(tmp)
 }
 
-fn assert_not_clap_usage_error(context: &str, out: &crate::workspace::CommandOutput) -> anyhow::Result<()> {
+fn assert_not_clap_usage_error(
+    context: &str,
+    out: &crate::workspace::CommandOutput,
+) -> anyhow::Result<()> {
     ensure!(
-        !out.stderr.contains("unexpected argument") && !out.stderr.contains("unrecognized subcommand"),
+        !out.stderr.contains("unexpected argument")
+            && !out.stderr.contains("unrecognized subcommand"),
         "{context}: CLI rejected argument/subcommand as unknown (clap exit {:?}): {}",
         out.exit_code,
         truncate_preview(&out.stderr, 300)
@@ -1276,7 +1659,12 @@ fn build_cli_readonly_args_ext(
             } else {
                 f_path.display().to_string()
             };
-            args.extend([flag.to_string(), target_str, "--format".into(), "json".into()]);
+            args.extend([
+                flag.to_string(),
+                target_str,
+                "--format".into(),
+                "json".into(),
+            ]);
         }
         CliInputStyle::FlagOffline(flag) => {
             args.extend([
@@ -1355,7 +1743,11 @@ fn verify_cli_json_output_mode(
     require_nonempty_rows: bool,
 ) -> anyhow::Result<usize> {
     let trimmed = stdout.trim();
-    ensure!(!trimmed.is_empty(), "item {:?} emitted empty stdout", it.name);
+    ensure!(
+        !trimmed.is_empty(),
+        "item {:?} emitted empty stdout",
+        it.name
+    );
     let val: Value = serde_json::from_str(trimmed).with_context(|| {
         format!(
             "item {:?} CLI stdout is not valid JSON: {}",
@@ -1419,7 +1811,10 @@ fn verify_cli_json_output_mode(
     }
 }
 
-fn build_mcp_readonly_args(it: &ItemSpec, fixtures: &MaterializedFixtures) -> anyhow::Result<Value> {
+fn build_mcp_readonly_args(
+    it: &ItemSpec,
+    fixtures: &MaterializedFixtures,
+) -> anyhow::Result<Value> {
     build_mcp_readonly_args_ext(it, fixtures, None, None)
 }
 
@@ -1451,7 +1846,11 @@ fn build_mcp_readonly_args_ext(
     })
 }
 
-fn verify_mcp_json_output(text: &str, tool_name: &str, require_nonempty_rows: bool) -> anyhow::Result<usize> {
+fn verify_mcp_json_output(
+    text: &str,
+    tool_name: &str,
+    require_nonempty_rows: bool,
+) -> anyhow::Result<usize> {
     let trimmed = text.trim();
     let val: Value = serde_json::from_str(trimmed).with_context(|| {
         format!(
@@ -1463,17 +1862,26 @@ fn verify_mcp_json_output(text: &str, tool_name: &str, require_nonempty_rows: bo
     match &val {
         Value::Array(arr) => {
             if require_nonempty_rows {
-                ensure!(!arr.is_empty(), "MCP tool '{tool_name}' returned empty JSON array []");
+                ensure!(
+                    !arr.is_empty(),
+                    "MCP tool '{tool_name}' returned empty JSON array []"
+                );
             }
             for (idx, elem) in arr.iter().enumerate() {
-                ensure!(elem.is_object(), "MCP tool '{tool_name}' element {idx} is not object");
+                ensure!(
+                    elem.is_object(),
+                    "MCP tool '{tool_name}' element {idx} is not object"
+                );
             }
             Ok(arr.len())
         }
         Value::Object(obj) => {
             let table_obj = obj.get("table").and_then(Value::as_object).unwrap_or(obj);
             if let Some(rows) = table_obj.get("rows").and_then(Value::as_array) {
-                let has_table_meta = table_obj.get("columns").and_then(Value::as_array).is_some_and(|c| !c.is_empty())
+                let has_table_meta = table_obj
+                    .get("columns")
+                    .and_then(Value::as_array)
+                    .is_some_and(|c| !c.is_empty())
                     || table_obj.get("tool_id").and_then(Value::as_str).is_some()
                     || table_obj.get("title").and_then(Value::as_str).is_some();
                 ensure!(
@@ -1487,7 +1895,10 @@ fn verify_mcp_json_output(text: &str, tool_name: &str, require_nonempty_rows: bo
                     );
                 }
                 if !rows.is_empty() {
-                    ensure!(rows[0].is_object(), "MCP tool '{tool_name}' row[0] is not an object");
+                    ensure!(
+                        rows[0].is_object(),
+                        "MCP tool '{tool_name}' row[0] is not an object"
+                    );
                 }
                 return Ok(rows.len());
             }
@@ -1499,7 +1910,10 @@ fn verify_mcp_json_output(text: &str, tool_name: &str, require_nonempty_rows: bo
                     );
                 }
                 if !entries.is_empty() {
-                    ensure!(entries[0].is_object(), "MCP tool '{tool_name}' entry[0] is not an object");
+                    ensure!(
+                        entries[0].is_object(),
+                        "MCP tool '{tool_name}' entry[0] is not an object"
+                    );
                 }
                 return Ok(entries.len());
             }
@@ -1518,13 +1932,21 @@ fn build_mutating_args(spec: MutatingActionSpec, fixture_path: &Path) -> Value {
         MutatingArgsKind::MailNk2Edit => json!({ "path": f_str, "dedup": true }),
         MutatingArgsKind::AndroidWpdDelete => json!({ "device_id": "wpd-0", "object_id": "obj-1" }),
         MutatingArgsKind::SysProcTerminate => json!({ "pid": 4200 }),
-        MutatingArgsKind::SysHwServiceControl => json!({ "service_name": "Spooler", "action": "stop" }),
+        MutatingArgsKind::SysHwServiceControl => {
+            json!({ "service_name": "Spooler", "action": "stop" })
+        }
         MutatingArgsKind::SysShellPrivacyClean => json!({ "categories": ["Temp"] }),
         MutatingArgsKind::FsBulkTargets => json!({ "targets": [f_str] }),
-        MutatingArgsKind::FsAdsDelete => json!({ "file_path": f_str, "stream_name": "Zone.Identifier" }),
+        MutatingArgsKind::FsAdsDelete => {
+            json!({ "file_path": f_str, "stream_name": "Zone.Identifier" })
+        }
         MutatingArgsKind::WinctlCmdScript => json!({ "script": "beep 440 100" }),
-        MutatingArgsKind::WinctlAudioCtl => json!({ "verb": "SetVolume", "target": "Speakers", "args": ["50"] }),
-        MutatingArgsKind::WinctlDisplayDdc => json!({ "monitor": "DISPLAY1", "vcp_code": 16, "value": 50 }),
+        MutatingArgsKind::WinctlAudioCtl => {
+            json!({ "verb": "SetVolume", "target": "Speakers", "args": ["50"] })
+        }
+        MutatingArgsKind::WinctlDisplayDdc => {
+            json!({ "monitor": "DISPLAY1", "vcp_code": 16, "value": 50 })
+        }
         MutatingArgsKind::WinctlDesktopClip => json!({ "operation": "clear" }),
         MutatingArgsKind::NetOsintSetDns => {
             json!({ "interface": "Ethernet", "servers": ["9.9.9.9"], "dry_run": true })
@@ -1579,7 +2001,10 @@ fn run_domain_cargo_check_test(
     }
     let fg = fg_for_check(chk)?;
     let ws_dir = session.workspace_dir(fg.workspace);
-    let crate_toml = ws_dir.join("crates").join(fg.domain_crate).join("Cargo.toml");
+    let crate_toml = ws_dir
+        .join("crates")
+        .join(fg.domain_crate)
+        .join("Cargo.toml");
     let pkg_args: Vec<&str> = if crate_toml.is_file() {
         vec!["test", "--offline", "-p", fg.domain_crate]
     } else {
@@ -1676,7 +2101,11 @@ fn run_domain_mcp_tools(
     let tools = session
         .cached_mcp_tools(fg.workspace)?
         .context("missing mcp --tools output")?;
-    ensure!(!tools.is_empty(), "{} mcp --tools returned 0 tools", fg.workspace.dir_name());
+    ensure!(
+        !tools.is_empty(),
+        "{} mcp --tools returned 0 tools",
+        fg.workspace.dir_name()
+    );
 
     let mut tool_map: BTreeMap<String, &Value> = BTreeMap::new();
     for tool in &tools {
@@ -1703,7 +2132,10 @@ fn run_domain_mcp_tools(
                 .with_context(|| format!("mcp --tools '{name}' missing annotations object"))?;
             ensure!(
                 ann.get("readOnlyHint").and_then(|v| v.as_bool()).is_some()
-                    && ann.get("destructiveHint").and_then(|v| v.as_bool()).is_some(),
+                    && ann
+                        .get("destructiveHint")
+                        .and_then(|v| v.as_bool())
+                        .is_some(),
                 "mcp --tools '{name}' missing readOnlyHint/destructiveHint booleans"
             );
         }
@@ -1772,7 +2204,8 @@ fn run_domain_mcp_jsonrpc(
     } else {
         None
     };
-    let (spawn_args, envs_owned) = mcp_spawn_args_and_env(fg.workspace, gac_tmp.as_ref().map(|t| t.path()));
+    let (spawn_args, envs_owned) =
+        mcp_spawn_args_and_env(fg.workspace, gac_tmp.as_ref().map(|t| t.path()));
     let env_refs: Vec<(&str, &str)> = envs_owned.iter().map(|(k, v)| (*k, v.as_str())).collect();
 
     let mut mcp = McpSession::spawn(&bin, spawn_args, &env_refs)?;
@@ -1806,7 +2239,8 @@ fn run_domain_mcp_jsonrpc(
         let resp = mcp.tools_call(it.mcp_tool, args)?;
         let text = assert_tool_call_ok(&resp, it.mcp_tool)?;
         let require_nonempty = it.expects_nonempty_rows
-            && !(fg.id == "FG-27" && matches!(it.mcp_tool, "pe_exports" | "pe_icons" | "pe_dotnet"));
+            && !(fg.id == "FG-27"
+                && matches!(it.mcp_tool, "pe_exports" | "pe_icons" | "pe_dotnet"));
         let rows = verify_mcp_json_output(&text, it.mcp_tool, require_nonempty)?;
         total_rows += rows;
         called += 1;
@@ -2149,16 +2583,31 @@ fn run_domain_corrupt_fixture(
     let mut owned_args: Vec<String> = Vec::new();
     match fg.workspace {
         TargetWorkspace::Chrome2Rust => {
-            let corrupt = cfg.fixtures.corrupt_dir.join(fg.items[0].corrupt_rel.unwrap_or("bad_magic.sqlite"));
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            let corrupt = cfg
+                .fixtures
+                .corrupt_dir
+                .join(fg.items[0].corrupt_rel.unwrap_or("bad_magic.sqlite"));
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend(fg.items[0].cli_tokens.iter().map(|s| (*s).to_string()));
             owned_args.extend([corrupt.display().to_string(), "-f".into(), "json".into()]);
         }
         TargetWorkspace::Mail2Rust => {
             let corrupt = cfg.fixtures.corrupt_dir.join("bad_nk2.nk2");
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend(fg.items[0].cli_tokens.iter().map(|s| (*s).to_string()));
-            owned_args.extend([corrupt.display().to_string(), "--format".into(), "json".into()]);
+            owned_args.extend([
+                corrupt.display().to_string(),
+                "--format".into(),
+                "json".into(),
+            ]);
         }
         TargetWorkspace::Android2Rust => {
             // Passing a corrupt regular file as --source-dir triggers clean directory/read error
@@ -2173,7 +2622,11 @@ fn run_domain_corrupt_fixture(
         }
         TargetWorkspace::Sys2Rust => {
             let corrupt = cfg.fixtures.corrupt_dir.join("bad_pe_magic.exe");
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend([
                 "pe".into(),
                 "exports".into(),
@@ -2184,9 +2637,17 @@ fn run_domain_corrupt_fixture(
             ]);
         }
         TargetWorkspace::Forensics2Rust => {
-            let corrupt_name = fg.items.iter().find_map(|it| it.corrupt_rel).unwrap_or("bad_magic.sqlite");
+            let corrupt_name = fg
+                .items
+                .iter()
+                .find_map(|it| it.corrupt_rel)
+                .unwrap_or("bad_magic.sqlite");
             let corrupt = cfg.fixtures.corrupt_dir.join(corrupt_name);
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend(fg.items[0].cli_tokens.iter().map(|s| (*s).to_string()));
             owned_args.extend([
                 "--source".into(),
@@ -2197,7 +2658,11 @@ fn run_domain_corrupt_fixture(
         }
         TargetWorkspace::Winctl2Rust => {
             let corrupt = cfg.fixtures.corrupt_dir.join("truncated_edid.bin");
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend([
                 "display".into(),
                 "edid".into(),
@@ -2209,7 +2674,11 @@ fn run_domain_corrupt_fixture(
         }
         TargetWorkspace::Net2Rust => {
             let corrupt = cfg.fixtures.corrupt_dir.join("bad_pcap_magic.pcap");
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend([
                 "capture".into(),
                 "sniff".into(),
@@ -2222,7 +2691,11 @@ fn run_domain_corrupt_fixture(
         }
         TargetWorkspace::Fs2Rust => {
             let corrupt = cfg.fixtures.corrupt_dir.join("bad_exif.jpg");
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend([
                 "data".into(),
                 "exif".into(),
@@ -2234,9 +2707,17 @@ fn run_domain_corrupt_fixture(
             ]);
         }
         _ => {
-            let corrupt_name = fg.items.iter().find_map(|it| it.corrupt_rel).unwrap_or("bad_magic.sqlite");
+            let corrupt_name = fg
+                .items
+                .iter()
+                .find_map(|it| it.corrupt_rel)
+                .unwrap_or("bad_magic.sqlite");
             let corrupt = cfg.fixtures.corrupt_dir.join(corrupt_name);
-            ensure!(corrupt.is_file(), "missing corrupt fixture {}", corrupt.display());
+            ensure!(
+                corrupt.is_file(),
+                "missing corrupt fixture {}",
+                corrupt.display()
+            );
             owned_args.extend(fg.items[0].cli_tokens.iter().map(|s| (*s).to_string()));
             owned_args.extend([
                 "--input".into(),
@@ -2313,7 +2794,11 @@ fn run_domain_empty_and_invalid(
             let zero_nk2 = tmp.path().join("zero.nk2");
             std::fs::write(&zero_nk2, b"")?;
             zero_args.extend(fg.items[0].cli_tokens.iter().map(|s| (*s).to_string()));
-            zero_args.extend([zero_nk2.display().to_string(), "--format".into(), "json".into()]);
+            zero_args.extend([
+                zero_nk2.display().to_string(),
+                "--format".into(),
+                "json".into(),
+            ]);
         }
         TargetWorkspace::Android2Rust => {
             let empty_dir = tmp.path().join("empty_wpd_dir");
@@ -2541,7 +3026,12 @@ fn run_domain_nonpriv_fallback(
                 if fg.workspace == TargetWorkspace::Android2Rust {
                     args.push("--json".into());
                 } else {
-                    args.extend(["--limit".into(), "2".into(), "--format".into(), "json".into()]);
+                    args.extend([
+                        "--limit".into(),
+                        "2".into(),
+                        "--format".into(),
+                        "json".into(),
+                    ]);
                 }
             }
             CliLiveStyle::OmitOffline => {
@@ -2552,7 +3042,12 @@ fn run_domain_nonpriv_fallback(
                     std::fs::write(probe_dir.join("probe.txt"), b"ok")?;
                     args.extend(["--root".into(), probe_dir.display().to_string()]);
                 }
-                args.extend(["--limit".into(), "2".into(), "--format".into(), "json".into()]);
+                args.extend([
+                    "--limit".into(),
+                    "2".into(),
+                    "--format".into(),
+                    "json".into(),
+                ]);
             }
             CliLiveStyle::PositionalNoPath | CliLiveStyle::MailLive => match fg.workspace {
                 TargetWorkspace::Chrome2Rust => {
@@ -2608,7 +3103,10 @@ fn run_domain_nonpriv_fallback(
                 truncate_preview(trimmed, 200)
             )
         })?;
-        ensure!(val.is_object(), "android2rust --live JSON must be an object");
+        ensure!(
+            val.is_object(),
+            "android2rust --live JSON must be an object"
+        );
     } else if matches!(
         fg.workspace,
         TargetWorkspace::Forensics2Rust | TargetWorkspace::Net2Rust
@@ -2647,12 +3145,13 @@ fn run_domain_nonpriv_fallback(
         } else {
             effective_item.expects_nonempty_rows
         };
-        let _ = verify_cli_json_output_mode(&out.stdout, effective_item, require_nonempty).with_context(|| {
-            format!(
-                "{} non-privileged fallback stdout validation failed",
-                fg.name
-            )
-        })?;
+        let _ = verify_cli_json_output_mode(&out.stdout, effective_item, require_nonempty)
+            .with_context(|| {
+                format!(
+                    "{} non-privileged fallback stdout validation failed",
+                    fg.name
+                )
+            })?;
     }
 
     Ok(CheckOutcome::Pass(format!(
@@ -2682,10 +3181,8 @@ fn run_domain_malformed_mcp(
     } else {
         None
     };
-    let (spawn_args, envs_owned) = mcp_spawn_args_and_env(
-        fg.workspace,
-        gac_tmp.as_ref().map(|t| t.path()),
-    );
+    let (spawn_args, envs_owned) =
+        mcp_spawn_args_and_env(fg.workspace, gac_tmp.as_ref().map(|t| t.path()));
     let env_refs: Vec<(&str, &str)> = envs_owned.iter().map(|(k, v)| (*k, v.as_str())).collect();
     let mut mcp = McpSession::spawn(&bin, spawn_args, &env_refs)?;
     mcp.initialize()?;
@@ -2818,7 +3315,12 @@ fn verify_suite_export_and_custody(
             match it.cli_input {
                 CliInputStyle::OfflineNoFile => args.push("--offline".into()),
                 CliInputStyle::Flag("--gac-root") => {
-                    let root = gac_tmp.as_ref().unwrap().path().join("Microsoft.NET").join("assembly");
+                    let root = gac_tmp
+                        .as_ref()
+                        .unwrap()
+                        .path()
+                        .join("Microsoft.NET")
+                        .join("assembly");
                     args.extend(["--gac-root".into(), root.display().to_string()]);
                 }
                 CliInputStyle::Flag(flag) => {
@@ -3026,10 +3528,8 @@ fn verify_suite_mutating_gate(
     } else {
         None
     };
-    let (spawn_args, envs_owned) = mcp_spawn_args_and_env(
-        fg.workspace,
-        gac_tmp.as_ref().map(|t| t.path()),
-    );
+    let (spawn_args, envs_owned) =
+        mcp_spawn_args_and_env(fg.workspace, gac_tmp.as_ref().map(|t| t.path()));
     let env_refs: Vec<(&str, &str)> = envs_owned.iter().map(|(k, v)| (*k, v.as_str())).collect();
     let mut mcp = McpSession::spawn(&bin, spawn_args, &env_refs)?;
     mcp.initialize()?;
@@ -3102,10 +3602,15 @@ fn verify_suite_mutating_gate(
             let tool = listed
                 .iter()
                 .find(|t| t.get("name").and_then(Value::as_str) == Some(spec.tool_id))
-                .with_context(|| format!("mutating MCP tool '{}' missing from tools/list", spec.tool_id))?;
-            let ann = tool
-                .get("annotations")
-                .with_context(|| format!("mutating MCP tool '{}' missing annotations", spec.tool_id))?;
+                .with_context(|| {
+                    format!(
+                        "mutating MCP tool '{}' missing from tools/list",
+                        spec.tool_id
+                    )
+                })?;
+            let ann = tool.get("annotations").with_context(|| {
+                format!("mutating MCP tool '{}' missing annotations", spec.tool_id)
+            })?;
             ensure!(
                 ann.get("destructiveHint").and_then(Value::as_bool) == Some(true)
                     && ann.get("readOnlyHint").and_then(Value::as_bool) != Some(true),
@@ -3117,7 +3622,10 @@ fn verify_suite_mutating_gate(
             let call_args = build_mutating_args(spec, &fixture_path);
             let resp = mcp.tools_call(spec.tool_id, call_args)?;
             let code = resp.pointer("/error/code").and_then(Value::as_i64);
-            let msg = resp.pointer("/error/message").and_then(Value::as_str).unwrap_or("");
+            let msg = resp
+                .pointer("/error/message")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             ensure!(
                 code == Some(-32003),
                 "mutating tool '{}' under ReadOnlyOnly policy expected JSON-RPC -32003, got {resp}",
@@ -3226,10 +3734,16 @@ fn verify_net2rust_radio_r4_redaction(
             truncate_preview(&cli_out.stderr, 200)
         );
         let _ = verify_cli_json_output(&cli_out.stdout, it)?;
-        check_no_r4_secret_leak(&format!("{label_prefix} CLI stdout JSON ({})", it.mcp_tool), &cli_out.stdout)?;
+        check_no_r4_secret_leak(
+            &format!("{label_prefix} CLI stdout JSON ({})", it.mcp_tool),
+            &cli_out.stdout,
+        )?;
 
         let csv_str = verify_suite_export_and_custody(fg, item_idx, cfg, session)?;
-        check_no_r4_secret_leak(&format!("{label_prefix} exported CSV ({})", it.mcp_tool), &csv_str)?;
+        check_no_r4_secret_leak(
+            &format!("{label_prefix} exported CSV ({})", it.mcp_tool),
+            &csv_str,
+        )?;
 
         let mcp_args = build_mcp_readonly_args(it, &cfg.fixtures)?;
         let resp = mcp.tools_call(it.mcp_tool, mcp_args)?;
@@ -3259,81 +3773,184 @@ fn run_tier3_pairwise(
                 "T3-01" => {
                     let n1 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "guap_query_10k_expressions"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-table",
+                            "--test",
+                            "synthetic_10k",
+                            "guap_query_10k_expressions",
+                        ],
                         1,
                     )?;
                     let n2 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "query_10k"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-table",
+                            "--test",
+                            "synthetic_10k",
+                            "query_10k",
+                        ],
                         2,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-01 guap-table GuapQuery & query tests passed ({n1}+{n2})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-01 guap-table GuapQuery & query tests passed ({n1}+{n2})"
+                    )))
                 }
                 "T3-02" => {
                     let n = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-table", "--test", "synthetic_10k", "table_text_compare_10k_diff"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-table",
+                            "--test",
+                            "synthetic_10k",
+                            "table_text_compare_10k_diff",
+                        ],
                         1,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-02 guap-table TableTextCompare diff passed ({n})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-02 guap-table TableTextCompare diff passed ({n})"
+                    )))
                 }
                 "T3-03" => {
                     let n1 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "csv_rfc4180_and_formula_neutralization"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-export",
+                            "--test",
+                            "export_and_merkle",
+                            "csv_rfc4180_and_formula_neutralization",
+                        ],
                         1,
                     )?;
                     let n2 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle", "tsv_sanitizes_embedded_tabs_and_newlines"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-export",
+                            "--test",
+                            "export_and_merkle",
+                            "tsv_sanitizes_embedded_tabs_and_newlines",
+                        ],
                         1,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-03 guap-export CSV/TSV formula neutralization passed ({n1}+{n2})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-03 guap-export CSV/TSV formula neutralization passed ({n1}+{n2})"
+                    )))
                 }
                 "T3-04" => {
                     let n = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-export", "--test", "export_and_merkle"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-export",
+                            "--test",
+                            "export_and_merkle",
+                        ],
                         6,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-04 guap-export 7-format + Merkle CustodyManifest passed ({n})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-04 guap-export 7-format + Merkle CustodyManifest passed ({n})"
+                    )))
                 }
                 "T3-05" => {
                     let n = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-gui-win32", "--no-default-features", "--lib", "win32_state_25k"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-gui-win32",
+                            "--no-default-features",
+                            "--lib",
+                            "win32_state_25k",
+                        ],
                         1,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-05 guap-gui-win32 25k TableProvider state passed ({n})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-05 guap-gui-win32 25k TableProvider state passed ({n})"
+                    )))
                 }
                 "T3-06" => {
                     let n = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-gui-iced", "--test", "grid_headless", "iced_grid_25k"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-gui-iced",
+                            "--test",
+                            "grid_headless",
+                            "iced_grid_25k",
+                        ],
                         1,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-06 guap-gui-iced 25k IcedDataGrid state passed ({n})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-06 guap-gui-iced 25k IcedDataGrid state passed ({n})"
+                    )))
                 }
                 "T3-07" => {
                     let n1 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "non_read_only_table_provider_exposes_confirm_destructive_and_enforces_32003"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-mcp",
+                            "--test",
+                            "mcp_contract",
+                            "non_read_only_table_provider_exposes_confirm_destructive_and_enforces_32003",
+                        ],
                         1,
                     )?;
                     let n2 = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "tools_list_annotations_and_table_provider_query"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-mcp",
+                            "--test",
+                            "mcp_contract",
+                            "tools_list_annotations_and_table_provider_query",
+                        ],
                         1,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-07 guap-mcp ReadOnlyOnly -32003 policy gate passed ({n1}+{n2})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-07 guap-mcp ReadOnlyOnly -32003 policy gate passed ({n1}+{n2})"
+                    )))
                 }
                 "T3-08" => {
                     let n = run_guap_kit_cargo_test_checked(
                         session,
-                        &["test", "--offline", "-p", "guap-mcp", "--test", "mcp_contract", "policy_gates_enforce_32003_and_allow_confirmed_mutations"],
+                        &[
+                            "test",
+                            "--offline",
+                            "-p",
+                            "guap-mcp",
+                            "--test",
+                            "mcp_contract",
+                            "policy_gates_enforce_32003_and_allow_confirmed_mutations",
+                        ],
                         1,
                     )?;
-                    Ok(CheckOutcome::Pass(format!("T3-08 guap-mcp AllowMutating confirm_destructive & dry_run passed ({n})")))
+                    Ok(CheckOutcome::Pass(format!(
+                        "T3-08 guap-mcp AllowMutating confirm_destructive & dry_run passed ({n})"
+                    )))
                 }
                 _ => unreachable!(),
             }
@@ -3383,7 +4000,10 @@ fn verify_downstream_gui_wiring(guap_root: &Path) -> anyhow::Result<usize> {
         "fs2rust",
     ];
     for suite in suites {
-        let win32_dir = guap_root.join(suite).join("crates").join(format!("{suite}-win32"));
+        let win32_dir = guap_root
+            .join(suite)
+            .join("crates")
+            .join(format!("{suite}-win32"));
         if win32_dir.join("Cargo.toml").is_file() {
             let manifest_path = win32_dir.join("app.manifest");
             ensure!(
@@ -3436,7 +4056,11 @@ fn run_tier4_scenario(
             "guap-mcp",
         ] {
             let cargo_toml = guap_kit_root.join("crates").join(krate).join("Cargo.toml");
-            ensure!(cargo_toml.is_file(), "T4-S16 missing {}", cargo_toml.display());
+            ensure!(
+                cargo_toml.is_file(),
+                "T4-S16 missing {}",
+                cargo_toml.display()
+            );
         }
         let win32_cargo = std::fs::read_to_string(
             guap_kit_root
@@ -3456,12 +4080,25 @@ fn run_tier4_scenario(
         } else {
             let n_ws = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "--workspace", "--exclude", "guap-gui-win32"],
+                &[
+                    "test",
+                    "--offline",
+                    "--workspace",
+                    "--exclude",
+                    "guap-gui-win32",
+                ],
                 10,
             )?;
             let n_w32 = run_guap_kit_cargo_test_checked(
                 session,
-                &["test", "--offline", "-p", "guap-gui-win32", "--no-default-features", "--lib"],
+                &[
+                    "test",
+                    "--offline",
+                    "-p",
+                    "guap-gui-win32",
+                    "--no-default-features",
+                    "--lib",
+                ],
                 2,
             )?;
             format!("cargo tests passed ({n_ws} workspace + {n_w32} win32)")
@@ -3491,7 +4128,9 @@ fn run_tier4_scenario(
                 extra_note.push_str(&format!("; {gate_msg}"));
             }
             if cfg.target == TargetWorkspace::All
-                && session.resolve_binary(TargetWorkspace::Chrome2Rust)?.is_some()
+                && session
+                    .resolve_binary(TargetWorkspace::Chrome2Rust)?
+                    .is_some()
             {
                 let fg12 = find_feature_group("FG-12").context("missing FG-12")?;
                 let _ = verify_suite_export_and_custody(fg12, 13, cfg, session)?;
@@ -3501,7 +4140,9 @@ fn run_tier4_scenario(
         "T4-S12" => {
             check_no_r4_secret_leak("T4-S12 exported CSV (radio.wifi-info)", &csv_str)?;
             verify_net2rust_radio_r4_redaction("T4-S12", fg, cfg, session)?;
-            extra_note.push_str(" + R4 zero-keyMaterial/PSK check (radio.wifi-info & radio.wifi-profiles)");
+            extra_note.push_str(
+                " + R4 zero-keyMaterial/PSK check (radio.wifi-info & radio.wifi-profiles)",
+            );
         }
         "T4-S14" if cfg.target == TargetWorkspace::All => {
             if session.resolve_binary(TargetWorkspace::Fs2Rust)?.is_some() {
@@ -3549,7 +4190,10 @@ pub struct RealAfterChar;
             .is_ok()
         );
         assert!(check_no_r4_secret_leak("psk", "GuapTestWpa2Key!2026").is_err());
-        assert!(check_no_r4_secret_leak("km_tag", "<keyMaterial>SecretWifiPass99</keyMaterial>").is_err());
+        assert!(
+            check_no_r4_secret_leak("km_tag", "<keyMaterial>SecretWifiPass99</keyMaterial>")
+                .is_err()
+        );
         assert!(check_no_r4_secret_leak("km_lower", "<KeyMaterial>abc</KeyMaterial>").is_err());
         assert!(check_no_r4_secret_leak("km_field", r#""keyMaterial": "abc""#).is_err());
         assert!(check_no_r4_secret_leak("flag", "WLAN_PROFILE_GET_PLAINTEXT_KEY").is_err());
@@ -3561,8 +4205,14 @@ pub struct RealAfterChar;
 pub/* outer /* inner */ */enum CellValue {}
 ";
         let stripped = strip_rust_comments(src);
-        assert!(stripped.contains("pub struct ColumnDef;"), "got: {stripped}");
-        assert!(stripped.contains("pub enum CellValue {}"), "got: {stripped}");
+        assert!(
+            stripped.contains("pub struct ColumnDef;"),
+            "got: {stripped}"
+        );
+        assert!(
+            stripped.contains("pub enum CellValue {}"),
+            "got: {stripped}"
+        );
     }
 
     #[test]
@@ -3614,7 +4264,12 @@ pub/* outer /* inner */ */enum CellValue {}
 
         assert!(staged.path().join("staged_watch.reg").is_file());
         assert!(staged.path().join("staged_vss_catalog.json").is_file());
-        assert!(staged.path().join("staged_previous_dir/Users/Test/sample.txt").is_file());
+        assert!(
+            staged
+                .path()
+                .join("staged_previous_dir/Users/Test/sample.txt")
+                .is_file()
+        );
 
         let sc2_bytes = std::fs::read(staged.path().join("staged_security_center2.json")).unwrap();
         let sc2_val: Value = serde_json::from_slice(&sc2_bytes).unwrap();

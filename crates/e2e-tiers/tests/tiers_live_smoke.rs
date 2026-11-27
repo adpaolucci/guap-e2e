@@ -20,7 +20,10 @@ fn guap_root() -> PathBuf {
 fn test_live_smoke_guap_kit_unbuilt_and_built_suites_via_run_tiers() {
     let root = guap_root();
     if !root.join("guap-kit/Cargo.toml").is_file() {
-        eprintln!("Skipping live smoke: GUAP repo not found at {}", root.display());
+        eprintln!(
+            "Skipping live smoke: GUAP repo not found at {}",
+            root.display()
+        );
         return;
     }
 
@@ -42,7 +45,11 @@ fn test_live_smoke_guap_kit_unbuilt_and_built_suites_via_run_tiers() {
         .filter(|r| !r.passed && !r.skipped)
         .map(|r| format!("{}: {}", r.id, r.message))
         .collect();
-    assert!(kit_fails.is_empty(), "GuapKit failures:\n{}", kit_fails.join("\n"));
+    assert!(
+        kit_fails.is_empty(),
+        "GuapKit failures:\n{}",
+        kit_fails.join("\n")
+    );
     assert!(
         kit_report.passed >= 6,
         "Expected GuapKit static+meta checks to pass, got {}",
@@ -79,7 +86,12 @@ fn test_live_smoke_guap_kit_unbuilt_and_built_suites_via_run_tiers() {
             fails.join("\n")
         );
         assert!(
-            report.passed >= 8 && report.results.iter().filter(|r| r.skipped).all(|r| r.id.ends_with("-01")),
+            report.passed >= 8
+                && report
+                    .results
+                    .iter()
+                    .filter(|r| r.skipped)
+                    .all(|r| r.id.ends_with("-01")),
             "{:?} live run_tiers expected all checks to pass without skips, got passed={} skipped={} total={}",
             ws,
             report.passed,
@@ -102,7 +114,11 @@ fn test_live_smoke_guap_kit_unbuilt_and_built_suites_via_run_tiers() {
         "Expected Winctl2Rust checks to execute, got total=0"
     );
     let mut non_enum_fails = Vec::new();
-    for r in winctl_report.results.iter().filter(|r| !r.passed && !r.skipped) {
+    for r in winctl_report
+        .results
+        .iter()
+        .filter(|r| !r.passed && !r.skipped)
+    {
         if r.message.contains("EnumWindows") || r.message.contains("0x800700cb") {
             eprintln!(
                 "[Winctl2Rust known upstream M6 EnumWindows 0x800700cb]: {}: {}",
@@ -131,7 +147,11 @@ fn test_live_smoke_guap_kit_unbuilt_and_built_suites_via_run_tiers() {
         "[Net2Rust non-blocking M4.6 probe] total={} passed={} failed={} skipped={}",
         net_report.total, net_report.passed, net_report.failed, net_report.skipped
     );
-    for r in net_report.results.iter().filter(|r| !r.passed && !r.skipped) {
+    for r in net_report
+        .results
+        .iter()
+        .filter(|r| !r.passed && !r.skipped)
+    {
         eprintln!("[Net2Rust non-blocking fail]: {}: {}", r.id, r.message);
     }
 }

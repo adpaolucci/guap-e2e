@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use e2e_tiers::catalog::feature_groups;
 use e2e_tiers::export_verify::{
-    compute_merkle_root_sha256, compute_merkle_root_sha512, neutralize_spreadsheet_cell, sha256_hex,
-    sha512_hex,
+    compute_merkle_root_sha256, compute_merkle_root_sha512, neutralize_spreadsheet_cell,
+    sha256_hex, sha512_hex,
 };
 use e2e_tiers::{CliExportStyle, FeatureGroupDef, McpArgsKind, MutatingArgsKind, TargetWorkspace};
 use serde_json::{Value, json};
@@ -26,7 +26,10 @@ fn detect_workspace() -> TargetWorkspace {
     }
     let stem = std::env::current_exe()
         .ok()
-        .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().to_ascii_lowercase()))
+        .and_then(|p| {
+            p.file_stem()
+                .map(|s| s.to_string_lossy().to_ascii_lowercase())
+        })
         .unwrap_or_default();
     match stem.as_str() {
         "forensics2rust" => TargetWorkspace::Forensics2Rust,
@@ -46,7 +49,10 @@ fn mock_mode() -> String {
 }
 
 fn ws_groups(ws: TargetWorkspace) -> Vec<&'static FeatureGroupDef> {
-    feature_groups().iter().filter(|fg| fg.workspace == ws).collect()
+    feature_groups()
+        .iter()
+        .filter(|fg| fg.workspace == ws)
+        .collect()
 }
 
 fn legacy_tools_for(ws: TargetWorkspace) -> &'static [&'static str] {
@@ -85,7 +91,9 @@ fn print_help(ws: TargetWorkspace, args: &[String]) {
         let mut seen = BTreeSet::new();
         for fg in &groups {
             for it in fg.items {
-                if let Some(first) = it.cli_tokens.first() && seen.insert(*first) {
+                if let Some(first) = it.cli_tokens.first()
+                    && seen.insert(*first)
+                {
                     println!("  {first:<18} {} subcommands", fg.name);
                 }
             }
@@ -142,7 +150,9 @@ fn build_schema(args_kind: McpArgsKind, mutating: bool) -> Value {
             props["source_path"] = json!({ "type": "string" });
             props["right_path"] = json!({ "type": "string" });
         }
-        McpArgsKind::HiveList => props["hives"] = json!({ "type": "array", "items": { "type": "string" } }),
+        McpArgsKind::HiveList => {
+            props["hives"] = json!({ "type": "array", "items": { "type": "string" } })
+        }
         McpArgsKind::SourceDirParent => props["source_dir"] = json!({ "type": "string" }),
     }
     json!({
@@ -275,7 +285,9 @@ fn make_row_payload(ws: TargetWorkspace, tool_id: &str, mode: &str) -> Value {
             }]
         });
     }
-    if ws == TargetWorkspace::Net2Rust && matches!(tool_id, "radio.wifi-info" | "radio.wifi-profiles") {
+    if ws == TargetWorkspace::Net2Rust
+        && matches!(tool_id, "radio.wifi-info" | "radio.wifi-profiles")
+    {
         return json!({
             "tool_id": tool_id,
             "title": "WiFi Profiles",
@@ -335,7 +347,11 @@ fn run_mcp_server(ws: TargetWorkspace, args: &[String]) {
         let req: Value = match serde_json::from_str(trimmed) {
             Ok(v) => v,
             Err(_) => {
-                let code = if mode == "bad_parse_error" { -32600 } else { -32700 };
+                let code = if mode == "bad_parse_error" {
+                    -32600
+                } else {
+                    -32700
+                };
                 let err = json!({"jsonrpc":"2.0","id":null,"error":{"code":code,"message":"parse error"}});
                 let _ = writeln!(stdout, "{err}");
                 let _ = stdout.flush();
@@ -371,10 +387,13 @@ fn run_mcp_server(ws: TargetWorkspace, args: &[String]) {
                         "error": {"code": -32602, "message": "tool arguments must be a JSON object or null"}
                     })
                 } else {
-                    let is_mutating_spec = groups.iter().any(|fg| {
-                        fg.mutating_action.is_some_and(|s| s.tool_id == tool_name)
-                    });
-                    let item_opt = groups.iter().flat_map(|fg| fg.items.iter()).find(|it| it.mcp_tool == tool_name);
+                    let is_mutating_spec = groups
+                        .iter()
+                        .any(|fg| fg.mutating_action.is_some_and(|s| s.tool_id == tool_name));
+                    let item_opt = groups
+                        .iter()
+                        .flat_map(|fg| fg.items.iter())
+                        .find(|it| it.mcp_tool == tool_name);
                     let is_mutating_item = item_opt.is_some_and(|it| it.mutating_capable);
                     let is_legacy = legacy_tools_for(ws).contains(&tool_name);
 
@@ -478,7 +497,9 @@ fn write_export_artifacts(
     } else {
         neutralize_spreadsheet_cell(dangerous)
     };
-    let psk = if ws == TargetWorkspace::Net2Rust && matches!(tool_id, "radio.wifi-info" | "radio.wifi-profiles") {
+    let psk = if ws == TargetWorkspace::Net2Rust
+        && matches!(tool_id, "radio.wifi-info" | "radio.wifi-profiles")
+    {
         match mode {
             "leak_r4_secret" => "GuapTestWpa2Key!2026",
             "leak_r4_keymaterial_csv" => "<keyMaterial>SecretWifiPass99</keyMaterial>",
@@ -570,8 +591,15 @@ fn is_corrupt_or_zero(path: &Path) -> bool {
         if meta.len() == 0 {
             return true;
         }
-        let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-        return name.starts_with("bad_") || name.starts_with("corrupt_") || name.starts_with("truncated_") || name.starts_with("truncated.") || name.starts_with("zero");
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        return name.starts_with("bad_")
+            || name.starts_with("corrupt_")
+            || name.starts_with("truncated_")
+            || name.starts_with("truncated.")
+            || name.starts_with("zero");
     }
     false
 }
@@ -601,9 +629,16 @@ fn main() {
     }
 
     if args[0] == "mcp" || (args.len() >= 2 && args[0] == "--offline" && args[1] == "mcp") {
-        let mcp_tail = if args[0] == "--offline" { &args[2..] } else { &args[1..] };
+        let mcp_tail = if args[0] == "--offline" {
+            &args[2..]
+        } else {
+            &args[1..]
+        };
         if mcp_tail.first().is_some_and(|s| s == "--tools") {
-            println!("{}", serde_json::to_string_pretty(&build_mcp_tools_json(ws)).unwrap());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&build_mcp_tools_json(ws)).unwrap()
+            );
             return;
         }
         run_mcp_server(ws, mcp_tail);
@@ -640,7 +675,10 @@ fn main() {
     }
 
     let Some((fg, item)) = matched else {
-        eprintln!("error: unrecognized subcommand '{}'", args.first().map(String::as_str).unwrap_or(""));
+        eprintln!(
+            "error: unrecognized subcommand '{}'",
+            args.first().map(String::as_str).unwrap_or("")
+        );
         std::process::exit(2);
     };
 
@@ -758,7 +796,10 @@ fn main() {
 
     if ws == TargetWorkspace::Android2Rust {
         if live_flag && source_dir.is_none() {
-            println!("{}", json!({"status":"unavailable","error":"no WPD devices","entries":[]}));
+            println!(
+                "{}",
+                json!({"status":"unavailable","error":"no WPD devices","entries":[]})
+            );
             std::process::exit(1);
         }
         if let Some(sd) = &source_dir {
@@ -831,7 +872,9 @@ fn main() {
     } else if ws == TargetWorkspace::Chrome2Rust && !item.expects_nonempty_rows {
         println!("[]");
     } else {
-        let psk = if ws == TargetWorkspace::Net2Rust && matches!(item.mcp_tool, "radio.wifi-info" | "radio.wifi-profiles") {
+        let psk = if ws == TargetWorkspace::Net2Rust
+            && matches!(item.mcp_tool, "radio.wifi-info" | "radio.wifi-profiles")
+        {
             match mode.as_str() {
                 "leak_r4_secret" => "GuapTestWpa2Key!2026",
                 "leak_r4_keymaterial_cli" => "<keyMaterial>SecretWifiPass99</keyMaterial>",

@@ -17,21 +17,34 @@ fn test_all_domains_file_counts_and_byte_determinism() {
     assert!(ra.all_verified());
     assert!(rb.all_verified());
     assert_eq!(ra.total_files, rb.total_files);
-    assert_eq!(ra.total_files, 79, "expected exact 79 materialized fixture files, got {}: {:?}", ra.total_files, ra.details);
+    assert_eq!(
+        ra.total_files, 79,
+        "expected exact 79 materialized fixture files, got {}: {:?}",
+        ra.total_files, ra.details
+    );
 
     // Verify every single file is byte-for-byte identical across runs
     let mut files_a = Vec::new();
     for entry in WalkDir::new(dir_a.path()).sort_by_file_name() {
         let entry = entry.unwrap();
         if entry.file_type().is_file() {
-            let rel = entry.path().strip_prefix(dir_a.path()).unwrap().to_path_buf();
+            let rel = entry
+                .path()
+                .strip_prefix(dir_a.path())
+                .unwrap()
+                .to_path_buf();
             files_a.push(rel);
         }
     }
     for rel in &files_a {
         let bytes_a = std::fs::read(dir_a.path().join(rel)).unwrap();
         let bytes_b = std::fs::read(dir_b.path().join(rel)).unwrap();
-        assert_eq!(bytes_a, bytes_b, "non-deterministic file: {}", rel.display());
+        assert_eq!(
+            bytes_a,
+            bytes_b,
+            "non-deterministic file: {}",
+            rel.display()
+        );
     }
 }
 
@@ -41,7 +54,10 @@ fn test_domain_specific_semantic_contents() {
     let f = materialize_all(dir.path()).unwrap();
 
     // Domain 2: ROT13 UserAssist check
-    assert_eq!(rot13(r"P:\Gbbyf\sberafvpf_fnzcyr.rkr"), r"C:\Tools\forensics_sample.exe");
+    assert_eq!(
+        rot13(r"P:\Gbbyf\sberafvpf_fnzcyr.rkr"),
+        r"C:\Tools\forensics_sample.exe"
+    );
     let ntuser = std::fs::read(f.hive_dir.join("NTUSER.DAT")).unwrap();
     assert!(String::from_utf8_lossy(&ntuser).contains(r"P:\Gbbyf\sberafvpf_fnzcyr.rkr"));
 
@@ -52,8 +68,13 @@ fn test_domain_specific_semantic_contents() {
     assert_eq!(u32::from_le_bytes(scca[0..4].try_into().unwrap()), 30);
 
     // Domain 6: Firefox mozLz40 decompression & JSON parsing
-    let sess = std::fs::read(f.browser_dir.join("firefox/profile_default/sessionstore.jsonlz4")).unwrap();
-    let sess_json: serde_json::Value = serde_json::from_slice(&decode_mozlz4(&sess).unwrap()).unwrap();
+    let sess = std::fs::read(
+        f.browser_dir
+            .join("firefox/profile_default/sessionstore.jsonlz4"),
+    )
+    .unwrap();
+    let sess_json: serde_json::Value =
+        serde_json::from_slice(&decode_mozlz4(&sess).unwrap()).unwrap();
     assert_eq!(
         sess_json["windows"][0]["tabs"][0]["entries"][0]["url"],
         "https://example.org/docs"

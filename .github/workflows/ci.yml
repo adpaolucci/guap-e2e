@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
+    - name: Check Formatting
+      if: runner.os == 'Linux'
+      run: cargo fmt --check
+
+    - name: Clippy Linter
+      run: cargo clippy --workspace --all-targets -- -D warnings
+
+    - name: Run Tests
+      run: cargo test --workspace --verbose
+
+    - name: Run GUAP-E2E Self Check (Tier 1)
+      run: cargo run --bin guap-e2e -- --tier 1
+
+    - name: Build Release Binary
+      if: runner.os != 'macOS'
+      run: cargo build --workspace --release
+
+  deny:
+    name: Security & License Audit (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-deny
+      uses: taiki-e/install-action@cargo-deny
+
+    - name: Audit advisories, licenses, and sources
+      run: cargo deny check advisories licenses sources

@@ -1,9 +1,9 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
 use crate::util::{
-    read_i32_le, read_u16_le, read_u32_le, rot13, utf16le_nul, write_file_deterministic, xor32_u32s,
-    FIXED_FILETIME,
+    FIXED_FILETIME, read_i32_le, read_u16_le, read_u32_le, rot13, utf16le_nul,
+    write_file_deterministic, xor32_u32s,
 };
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 #[derive(Clone)]
 pub enum RegValueData {
@@ -107,7 +107,9 @@ impl HbinBuilder {
 fn lh_hash(name: &str) -> u32 {
     let mut hash = 0u32;
     for b in name.bytes() {
-        hash = hash.wrapping_mul(37).wrapping_add(b.to_ascii_uppercase() as u32);
+        hash = hash
+            .wrapping_mul(37)
+            .wrapping_add(b.to_ascii_uppercase() as u32);
     }
     hash
 }
@@ -177,15 +179,34 @@ fn emit_nk_recursive(
         for sub in &node.subkeys {
             let sub_off = emit_nk_recursive(hb, sub, nk_off, sk_off, use_lf, false);
             list_body.extend_from_slice(&sub_off.to_le_bytes());
-            let hint = if use_lf { lf_hint(&sub.name) } else { lh_hash(&sub.name) };
+            let hint = if use_lf {
+                lf_hint(&sub.name)
+            } else {
+                lh_hash(&sub.name)
+            };
             list_body.extend_from_slice(&hint.to_le_bytes());
         }
         hb.alloc_cell(&list_body)
     };
 
-    let max_sub_len = node.subkeys.iter().map(|s| (s.name.len() * 2) as u32).max().unwrap_or(0);
-    let max_val_name_len = node.values.iter().map(|(n, _)| (n.len() * 2) as u32).max().unwrap_or(0);
-    let max_val_data_len = node.values.iter().map(|(_, d)| d.encode_bytes().len() as u32).max().unwrap_or(0);
+    let max_sub_len = node
+        .subkeys
+        .iter()
+        .map(|s| (s.name.len() * 2) as u32)
+        .max()
+        .unwrap_or(0);
+    let max_val_name_len = node
+        .values
+        .iter()
+        .map(|(n, _)| (n.len() * 2) as u32)
+        .max()
+        .unwrap_or(0);
+    let max_val_data_len = node
+        .values
+        .iter()
+        .map(|(_, d)| d.encode_bytes().len() as u32)
+        .max()
+        .unwrap_or(0);
 
     let mut nk = vec![0u8; nk_body_len];
     nk[0x00..0x02].copy_from_slice(b"nk");
@@ -250,13 +271,22 @@ fn build_hive(hive_filename: &str, root: &RegKeyNode, use_lf: bool) -> Vec<u8> {
         for sub in &root.subkeys {
             let sub_off = emit_nk_recursive(&mut hb, sub, root_off, sk_off, use_lf, false);
             list_body.extend_from_slice(&sub_off.to_le_bytes());
-            let hint = if use_lf { lf_hint(&sub.name) } else { lh_hash(&sub.name) };
+            let hint = if use_lf {
+                lf_hint(&sub.name)
+            } else {
+                lh_hash(&sub.name)
+            };
             list_body.extend_from_slice(&hint.to_le_bytes());
         }
         hb.alloc_cell(&list_body)
     };
 
-    let max_sub_len = root.subkeys.iter().map(|s| (s.name.len() * 2) as u32).max().unwrap_or(0);
+    let max_sub_len = root
+        .subkeys
+        .iter()
+        .map(|s| (s.name.len() * 2) as u32)
+        .max()
+        .unwrap_or(0);
     let mut nk = vec![0u8; 0x4C + root_name_len];
     nk[0x00..0x02].copy_from_slice(b"nk");
     nk[0x02..0x04].copy_from_slice(&0x002Cu16.to_le_bytes());
@@ -338,7 +368,8 @@ fn build_sample_pidl() -> Vec<u8> {
     pidl.push(0x1F);
     pidl.push(0x50);
     pidl.extend_from_slice(&[
-        0xE0, 0x4F, 0xD0, 0x20, 0xEA, 0x3A, 0x69, 0x10, 0xA2, 0xD8, 0x08, 0x00, 0x2B, 0x30, 0x30, 0x9D,
+        0xE0, 0x4F, 0xD0, 0x20, 0xEA, 0x3A, 0x69, 0x10, 0xA2, 0xD8, 0x08, 0x00, 0x2B, 0x30, 0x30,
+        0x9D,
     ]);
     let mut vol = vec![0u8; 25];
     vol[0..2].copy_from_slice(&25u16.to_le_bytes());
@@ -378,11 +409,15 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     let mut comdlg = RegKeyNode::new("ComDlg32");
     let mut opensave = RegKeyNode::new("OpenSavePidlMRU");
     let mut os_txt = RegKeyNode::new("txt");
-    os_txt.values.push(("0".into(), RegValueData::Binary(build_sample_pidl())));
+    os_txt
+        .values
+        .push(("0".into(), RegValueData::Binary(build_sample_pidl())));
     let mut mru_ex = Vec::new();
     mru_ex.extend_from_slice(&0u32.to_le_bytes());
     mru_ex.extend_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
-    os_txt.values.push(("MRUListEx".into(), RegValueData::Binary(mru_ex)));
+    os_txt
+        .values
+        .push(("MRUListEx".into(), RegValueData::Binary(mru_ex)));
     opensave.subkeys.push(os_txt);
     comdlg.subkeys.push(opensave);
 
@@ -390,11 +425,21 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     exp.subkeys.push(comdlg);
 
     let mut run = RegKeyNode::new("Run");
-    run.values.push(("ForensicsAgent".into(), RegValueData::Sz(r"C:\Tools\forensics_sample.exe".into())));
-    run.values.push(("Helper".into(), RegValueData::ExpandSz(r"%ProgramFiles%\GUAP\helper.exe".into())));
+    run.values.push((
+        "ForensicsAgent".into(),
+        RegValueData::Sz(r"C:\Tools\forensics_sample.exe".into()),
+    ));
+    run.values.push((
+        "Helper".into(),
+        RegValueData::ExpandSz(r"%ProgramFiles%\GUAP\helper.exe".into()),
+    ));
     run.values.push(("Enabled".into(), RegValueData::Dword(1)));
-    run.values.push(("LastCheck".into(), RegValueData::Qword(FIXED_FILETIME)));
-    run.values.push(("Tags".into(), RegValueData::MultiSz(vec!["audit".into(), "dfir".into()])));
+    run.values
+        .push(("LastCheck".into(), RegValueData::Qword(FIXED_FILETIME)));
+    run.values.push((
+        "Tags".into(),
+        RegValueData::MultiSz(vec!["audit".into(), "dfir".into()]),
+    ));
 
     cv.subkeys.push(exp);
     cv.subkeys.push(run);
@@ -402,7 +447,10 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     ms.subkeys.push(win);
     sw.subkeys.push(ms);
     ntuser.subkeys.push(sw);
-    write_file_deterministic(&hive_dir.join("NTUSER.DAT"), &build_hive("NTUSER.DAT", &ntuser, false))?;
+    write_file_deterministic(
+        &hive_dir.join("NTUSER.DAT"),
+        &build_hive("NTUSER.DAT", &ntuser, false),
+    )?;
 
     let mut usrclass = RegKeyNode::new("ROOT");
     let mut ls = RegKeyNode::new("Local Settings");
@@ -412,20 +460,31 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     let mut shell = RegKeyNode::new("Shell");
 
     let mut bagmru = RegKeyNode::new("BagMRU");
-    bagmru.values.push(("NodeSlot".into(), RegValueData::Dword(1)));
+    bagmru
+        .values
+        .push(("NodeSlot".into(), RegValueData::Dword(1)));
     let mut mru0 = Vec::new();
     mru0.extend_from_slice(&0u32.to_le_bytes());
     mru0.extend_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
-    bagmru.values.push(("MRUListEx".into(), RegValueData::Binary(mru0.clone())));
+    bagmru
+        .values
+        .push(("MRUListEx".into(), RegValueData::Binary(mru0.clone())));
     let mut vol_pidl = vec![0u8; 25];
     vol_pidl[0..2].copy_from_slice(&25u16.to_le_bytes());
     vol_pidl[2] = 0x2F;
     vol_pidl[3..6].copy_from_slice(b"C:\\");
-    bagmru.values.push(("0".into(), RegValueData::Binary(vol_pidl)));
+    bagmru
+        .values
+        .push(("0".into(), RegValueData::Binary(vol_pidl)));
     let mut bag0 = RegKeyNode::new("0");
-    bag0.values.push(("NodeSlot".into(), RegValueData::Dword(2)));
-    bag0.values.push(("MRUListEx".into(), RegValueData::Binary(mru0)));
-    bag0.values.push(("0".into(), RegValueData::Binary(shitemid_entry(0x31, "Cases"))));
+    bag0.values
+        .push(("NodeSlot".into(), RegValueData::Dword(2)));
+    bag0.values
+        .push(("MRUListEx".into(), RegValueData::Binary(mru0)));
+    bag0.values.push((
+        "0".into(),
+        RegValueData::Binary(shitemid_entry(0x31, "Cases")),
+    ));
     bagmru.subkeys.push(bag0);
 
     let mut muicache = RegKeyNode::new("MuiCache");
@@ -441,7 +500,10 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     uc_sw.subkeys.push(uc_ms);
     ls.subkeys.push(uc_sw);
     usrclass.subkeys.push(ls);
-    write_file_deterministic(&hive_dir.join("UsrClass.dat"), &build_hive("UsrClass.dat", &usrclass, false))?;
+    write_file_deterministic(
+        &hive_dir.join("UsrClass.dat"),
+        &build_hive("UsrClass.dat", &usrclass, false),
+    )?;
 
     let mut sys_root = RegKeyNode::new("ROOT");
     let mut cs001 = RegKeyNode::new("ControlSet001");
@@ -449,7 +511,10 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     let mut usbstor = RegKeyNode::new("USBSTOR");
     let mut disk = RegKeyNode::new("Disk&Ven_SanDisk&Prod_Ultra&Rev_1.00");
     let mut dev = RegKeyNode::new("4C530001231020118273&0");
-    dev.values.push(("FriendlyName".into(), RegValueData::Sz("SanDisk Ultra USB Device".into())));
+    dev.values.push((
+        "FriendlyName".into(),
+        RegValueData::Sz("SanDisk Ultra USB Device".into()),
+    ));
     dev.values.push((
         "HardwareID".into(),
         RegValueData::MultiSz(vec![
@@ -457,13 +522,17 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
             r"USBSTOR\DiskSanDisk_Ultra___________".into(),
         ]),
     ));
-    dev.values.push(("Capabilities".into(), RegValueData::Dword(0x10)));
+    dev.values
+        .push(("Capabilities".into(), RegValueData::Dword(0x10)));
     disk.subkeys.push(dev);
     usbstor.subkeys.push(disk);
     enum_k.subkeys.push(usbstor);
     cs001.subkeys.push(enum_k);
     sys_root.subkeys.push(cs001);
-    write_file_deterministic(&hive_dir.join("SYSTEM"), &build_hive("SYSTEM", &sys_root, true))?;
+    write_file_deterministic(
+        &hive_dir.join("SYSTEM"),
+        &build_hive("SYSTEM", &sys_root, true),
+    )?;
 
     let mut sw_root = RegKeyNode::new("ROOT");
     let mut sw_ms = RegKeyNode::new("Microsoft");
@@ -471,30 +540,46 @@ pub fn generate_hive_dir(hive_dir: &Path) -> Result<()> {
     let mut sw_cv = RegKeyNode::new("CurrentVersion");
     let mut plist = RegKeyNode::new("ProfileList");
     let mut prof = RegKeyNode::new("S-1-5-21-1001-2002-3003-1001");
-    prof.values.push(("ProfileImagePath".into(), RegValueData::ExpandSz(r"C:\Users\alice".into())));
+    prof.values.push((
+        "ProfileImagePath".into(),
+        RegValueData::ExpandSz(r"C:\Users\alice".into()),
+    ));
     prof.values.push((
         "Sid".into(),
         RegValueData::Binary(vec![
-            1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 0xE9, 0x03, 0, 0, 0xD2, 0x07, 0, 0, 0xBB, 0x0B,
-            0, 0, 0xE9, 0x03, 0, 0,
+            1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 0xE9, 0x03, 0, 0, 0xD2, 0x07, 0, 0, 0xBB, 0x0B, 0,
+            0, 0xE9, 0x03, 0, 0,
         ]),
     ));
     prof.values.push(("Flags".into(), RegValueData::Dword(0)));
-    prof.values.push(("LocalProfileLoadTimeLow".into(), RegValueData::Dword((FIXED_FILETIME & 0xFFFF_FFFF) as u32)));
-    prof.values.push(("LocalProfileLoadTimeHigh".into(), RegValueData::Dword((FIXED_FILETIME >> 32) as u32)));
+    prof.values.push((
+        "LocalProfileLoadTimeLow".into(),
+        RegValueData::Dword((FIXED_FILETIME & 0xFFFF_FFFF) as u32),
+    ));
+    prof.values.push((
+        "LocalProfileLoadTimeHigh".into(),
+        RegValueData::Dword((FIXED_FILETIME >> 32) as u32),
+    ));
     plist.subkeys.push(prof);
     sw_cv.subkeys.push(plist);
     sw_nt.subkeys.push(sw_cv);
     sw_ms.subkeys.push(sw_nt);
     sw_root.subkeys.push(sw_ms);
-    write_file_deterministic(&hive_dir.join("SOFTWARE"), &build_hive("SOFTWARE", &sw_root, false))?;
+    write_file_deterministic(
+        &hive_dir.join("SOFTWARE"),
+        &build_hive("SOFTWARE", &sw_root, false),
+    )?;
 
     Ok(())
 }
 
 pub fn verify_hive_dir(hive_dir: &Path) -> Result<(usize, Vec<String>)> {
     let expected = [
-        ("NTUSER.DAT", "UserAssist", "P:\\Gbbyf\\sberafvpf_fnzcyr.rkr"),
+        (
+            "NTUSER.DAT",
+            "UserAssist",
+            "P:\\Gbbyf\\sberafvpf_fnzcyr.rkr",
+        ),
         ("UsrClass.dat", "BagMRU", "MuiCache"),
         ("SYSTEM", "USBSTOR", "SanDisk"),
         ("SOFTWARE", "ProfileList", "alice"),
@@ -502,11 +587,27 @@ pub fn verify_hive_dir(hive_dir: &Path) -> Result<(usize, Vec<String>)> {
     let mut details = Vec::new();
     for (fname, marker1, marker2) in &expected {
         let buf = std::fs::read(hive_dir.join(fname))?;
-        ensure!(buf.len() >= 8192 && buf.len() % 4096 == 0, "{}: bad size", fname);
+        ensure!(
+            buf.len() >= 8192 && buf.len() % 4096 == 0,
+            "{}: bad size",
+            fname
+        );
         ensure!(&buf[0..4] == b"regf", "{}: bad regf magic", fname);
-        ensure!(read_u32_le(&buf, 4)? == read_u32_le(&buf, 8)?, "{}: seq mismatch", fname);
-        ensure!(read_u32_le(&buf, 0x24)? == 0x20, "{}: root_cell_offset != 0x20", fname);
-        ensure!(read_u32_le(&buf, 0x1FC)? == regf_checksum(&buf[0..0x1FC]), "{}: regf checksum mismatch", fname);
+        ensure!(
+            read_u32_le(&buf, 4)? == read_u32_le(&buf, 8)?,
+            "{}: seq mismatch",
+            fname
+        );
+        ensure!(
+            read_u32_le(&buf, 0x24)? == 0x20,
+            "{}: root_cell_offset != 0x20",
+            fname
+        );
+        ensure!(
+            read_u32_le(&buf, 0x1FC)? == regf_checksum(&buf[0..0x1FC]),
+            "{}: regf checksum mismatch",
+            fname
+        );
         let hbin_sz = read_u32_le(&buf, 0x28)? as usize;
         ensure!(buf.len() == 4096 + hbin_sz, "{}: hbin size mismatch", fname);
         ensure!(&buf[0x1000..0x1004] == b"hbin", "{}: bad hbin magic", fname);
@@ -519,7 +620,11 @@ pub fn verify_hive_dir(hive_dir: &Path) -> Result<(usize, Vec<String>)> {
             let raw_sz = read_i32_le(&buf, cursor)?;
             ensure!(raw_sz != 0, "{}: zero-size cell", fname);
             let abs_sz = raw_sz.unsigned_abs() as usize;
-            ensure!(abs_sz.is_multiple_of(8) && cursor + abs_sz <= end, "{}: bad cell align/bounds", fname);
+            ensure!(
+                abs_sz.is_multiple_of(8) && cursor + abs_sz <= end,
+                "{}: bad cell align/bounds",
+                fname
+            );
             if raw_sz < 0 && abs_sz >= 6 {
                 match &buf[cursor + 4..cursor + 6] {
                     b"nk" => saw_nk = true,
@@ -533,15 +638,42 @@ pub fn verify_hive_dir(hive_dir: &Path) -> Result<(usize, Vec<String>)> {
             cell_count += 1;
         }
         ensure!(cursor == end, "{}: cell walk incomplete", fname);
-        ensure!(saw_nk && saw_vk && saw_sk && saw_list, "{}: missing nk/vk/sk/list cell", fname);
-        ensure!(&buf[0x1024..0x1026] == b"nk", "{}: root cell is not nk", fname);
-        ensure!(read_u32_le(&buf, 0x1020 + 4 + 0x14)? >= 1, "{}: root has 0 subkeys", fname);
+        ensure!(
+            saw_nk && saw_vk && saw_sk && saw_list,
+            "{}: missing nk/vk/sk/list cell",
+            fname
+        );
+        ensure!(
+            &buf[0x1024..0x1026] == b"nk",
+            "{}: root cell is not nk",
+            fname
+        );
+        ensure!(
+            read_u32_le(&buf, 0x1020 + 4 + 0x14)? >= 1,
+            "{}: root has 0 subkeys",
+            fname
+        );
 
         let haystack = String::from_utf8_lossy(&buf);
-        let haystack_u16: Vec<u16> = buf.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        let haystack_u16: Vec<u16> = buf
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
         let decoded_u16 = String::from_utf16_lossy(&haystack_u16);
-        ensure!(haystack.contains(marker1) || decoded_u16.contains(marker1), "{}: missing {}", fname, marker1);
-        ensure!(haystack.contains(marker2) || decoded_u16.contains(marker2), "{}: missing {}", fname, marker2);
+        ensure!(
+            haystack.contains(marker1) || decoded_u16.contains(marker1),
+            "{}: missing {}",
+            fname,
+            marker1
+        );
+        ensure!(
+            haystack.contains(marker2) || decoded_u16.contains(marker2),
+            "{}: missing {}",
+            fname,
+            marker2
+        );
         let _ = read_u16_le(&buf, 0x14)?;
         details.push(format!("hive/{}: {} cells verified", fname, cell_count));
     }

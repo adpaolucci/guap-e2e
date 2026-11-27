@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use e2e_fixtures::materialize_all;
-use e2e_tiers::export_verify::{parse_rfc4180_csv, verify_csv_formula_neutralization, verify_tsv_bytes};
+use e2e_tiers::export_verify::{
+    parse_rfc4180_csv, verify_csv_formula_neutralization, verify_tsv_bytes,
+};
 use e2e_tiers::workspace::WorkspaceSession;
 use e2e_tiers::{TargetWorkspace, Tier, TierRunConfig, run_tiers};
 use tempfile::TempDir;
@@ -173,11 +175,16 @@ fn setup_mock_guap_root(place_binaries: bool) -> TempDir {
             &win32.join("app.manifest"),
             "<assembly><dependency><dependentAssembly><assemblyIdentity name=\"Microsoft.Windows.Common-Controls\" version=\"6.0.0.0\" /></dependentAssembly></dependency></assembly>",
         );
-        write_file(&win32.join("build.rs"), "fn main() { println!(\"cargo:rerun-if-changed=app.manifest\"); }");
+        write_file(
+            &win32.join("build.rs"),
+            "fn main() { println!(\"cargo:rerun-if-changed=app.manifest\"); }",
+        );
         write_file(&win32.join("src/lib.rs"), "pub fn init() {}\n");
 
         if place_binaries {
-            let dst = ws_dir.join("target/debug").join(format!("{ws}{exe_suffix}"));
+            let dst = ws_dir
+                .join("target/debug")
+                .join(format!("{ws}{exe_suffix}"));
             std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
             std::fs::copy(&mock_bin, &dst).unwrap();
         }
@@ -187,13 +194,17 @@ fn setup_mock_guap_root(place_binaries: bool) -> TempDir {
 struct ModeGuard;
 impl ModeGuard {
     fn set(val: &str) -> Self {
-        unsafe { std::env::set_var("MOCK_GUAP_MODE", val); }
+        unsafe {
+            std::env::set_var("MOCK_GUAP_MODE", val);
+        }
         Self
     }
 }
 impl Drop for ModeGuard {
     fn drop(&mut self) {
-        unsafe { std::env::remove_var("MOCK_GUAP_MODE"); }
+        unsafe {
+            std::env::remove_var("MOCK_GUAP_MODE");
+        }
     }
 }
 
@@ -221,7 +232,11 @@ fn test_positive_full_4tier_run_against_mock_workspaces() {
         .filter(|r| !r.passed && !r.skipped)
         .map(|r| format!("{}: {}", r.id, r.message))
         .collect();
-    assert!(fails.is_empty(), "Unexpected failures:\n{}", fails.join("\n"));
+    assert!(
+        fails.is_empty(),
+        "Unexpected failures:\n{}",
+        fails.join("\n")
+    );
     let skips: Vec<_> = report
         .results
         .iter()
@@ -253,11 +268,26 @@ fn test_tier_filtering_and_strict_workspace_filtering() {
         skip_cargo_build: true,
     };
     let report = run_tiers(&cfg).unwrap();
-    assert_eq!(report.total, 13, "Chrome2Rust strict target should run 13 checks");
-    assert_eq!(report.failed, 0, "Failures: {:?}", report.results.iter().filter(|r| !r.passed && !r.skipped).collect::<Vec<_>>());
+    assert_eq!(
+        report.total, 13,
+        "Chrome2Rust strict target should run 13 checks"
+    );
+    assert_eq!(
+        report.failed,
+        0,
+        "Failures: {:?}",
+        report
+            .results
+            .iter()
+            .filter(|r| !r.passed && !r.skipped)
+            .collect::<Vec<_>>()
+    );
     assert_eq!(report.passed, 12);
     assert_eq!(report.skipped, 1);
-    assert!(!report.results.iter().any(|r| r.id == "T4-S16"), "T4-S16 must NOT leak into Chrome2Rust target");
+    assert!(
+        !report.results.iter().any(|r| r.id == "T4-S16"),
+        "T4-S16 must NOT leak into Chrome2Rust target"
+    );
 }
 
 #[test]
@@ -277,11 +307,22 @@ fn test_skip_behavior_when_binary_and_cargo_skipped() {
         skip_cargo_build: true,
     };
     let report = run_tiers(&cfg).unwrap();
-    assert_eq!(report.failed, 0, "Unexpected failures when binaries missing & cargo skipped");
-    assert!(report.skipped > 250, "Expected missing-binary & guap-kit runtime checks to skip cleanly, got skipped={}", report.skipped);
+    assert_eq!(
+        report.failed, 0,
+        "Unexpected failures when binaries missing & cargo skipped"
+    );
+    assert!(
+        report.skipped > 250,
+        "Expected missing-binary & guap-kit runtime checks to skip cleanly, got skipped={}",
+        report.skipped
+    );
     // GuapKit runtime checks (e.g. T3-01..08) must SKIP when skip_cargo_build=true
     for r in report.results.iter().filter(|r| r.id.starts_with("T3-0")) {
-        assert!(r.skipped, "{} should be Skipped when skip_cargo_build=true, got {:?}", r.id, r);
+        assert!(
+            r.skipped,
+            "{} should be Skipped when skip_cargo_build=true, got {:?}",
+            r.id, r
+        );
     }
 }
 
@@ -302,10 +343,24 @@ fn test_negative_silent_empty_json_fails_tier1() {
         skip_cargo_build: true,
     };
     let report = run_tiers(&cfg).unwrap();
-    let mcp_fails = report.results.iter().filter(|r| r.id.ends_with("-04") && !r.passed).count();
-    let cli_fails = report.results.iter().filter(|r| r.id.ends_with("-05") && !r.passed).count();
-    assert_eq!(mcp_fails, 6, "All 6 forensics2rust Tier1 MCP checks must reject silent '{{}}'");
-    assert_eq!(cli_fails, 6, "All 6 forensics2rust Tier1 CLI checks must reject silent '{{}}'");
+    let mcp_fails = report
+        .results
+        .iter()
+        .filter(|r| r.id.ends_with("-04") && !r.passed)
+        .count();
+    let cli_fails = report
+        .results
+        .iter()
+        .filter(|r| r.id.ends_with("-05") && !r.passed)
+        .count();
+    assert_eq!(
+        mcp_fails, 6,
+        "All 6 forensics2rust Tier1 MCP checks must reject silent '{{}}'"
+    );
+    assert_eq!(
+        cli_fails, 6,
+        "All 6 forensics2rust Tier1 CLI checks must reject silent '{{}}'"
+    );
 }
 
 #[test]
@@ -325,12 +380,33 @@ fn test_negative_clap_exit2_fails_tier2() {
         skip_cargo_build: true,
     };
     let report = run_tiers(&cfg).unwrap();
-    let t2_01 = report.results.iter().find(|r| r.id == "T2-FG-13-01").unwrap();
-    let t2_02 = report.results.iter().find(|r| r.id == "T2-FG-13-02").unwrap();
-    let t2_03 = report.results.iter().find(|r| r.id == "T2-FG-13-03").unwrap();
-    assert!(!t2_01.passed, "T2-FG13-01 must fail when CLI gives clap exit-2 unknown-arg error");
-    assert!(!t2_02.passed, "T2-FG13-02 must fail when CLI gives clap exit-2 unknown-arg error");
-    assert!(!t2_03.passed, "T2-FG13-03 must fail when CLI gives clap exit-2 unknown-arg error");
+    let t2_01 = report
+        .results
+        .iter()
+        .find(|r| r.id == "T2-FG-13-01")
+        .unwrap();
+    let t2_02 = report
+        .results
+        .iter()
+        .find(|r| r.id == "T2-FG-13-02")
+        .unwrap();
+    let t2_03 = report
+        .results
+        .iter()
+        .find(|r| r.id == "T2-FG-13-03")
+        .unwrap();
+    assert!(
+        !t2_01.passed,
+        "T2-FG13-01 must fail when CLI gives clap exit-2 unknown-arg error"
+    );
+    assert!(
+        !t2_02.passed,
+        "T2-FG13-02 must fail when CLI gives clap exit-2 unknown-arg error"
+    );
+    assert!(
+        !t2_03.passed,
+        "T2-FG13-03 must fail when CLI gives clap exit-2 unknown-arg error"
+    );
 }
 
 #[test]
@@ -341,7 +417,9 @@ fn test_negative_comment_only_guap_kit_fails_contract_scan() {
     let guap_root = setup_mock_guap_root(false);
     // Replace guap-table/src/lib.rs with comment-only declarations!
     write_file(
-        &guap_root.path().join("guap-kit/crates/guap-table/src/lib.rs"),
+        &guap_root
+            .path()
+            .join("guap-kit/crates/guap-table/src/lib.rs"),
         "// pub enum CellValue {} pub struct TableColumn; pub struct TableRow;\n\
          /* pub struct TableData; pub struct TableQuery; pub trait TableProvider {}\n\
             pub trait ActionCommand {} pub enum FilterExpr {} pub struct TableTextCompare;\n\
@@ -358,8 +436,16 @@ fn test_negative_comment_only_guap_kit_fails_contract_scan() {
         skip_cargo_build: true,
     };
     let report = run_tiers(&cfg).unwrap();
-    let c = report.results.iter().find(|r| r.id == "T1-FG-01-03").unwrap();
-    assert!(!c.passed && !c.skipped, "T1-FG-01-03 must FAIL on comment-only declarations, got {:?}", c);
+    let c = report
+        .results
+        .iter()
+        .find(|r| r.id == "T1-FG-01-03")
+        .unwrap();
+    assert!(
+        !c.passed && !c.skipped,
+        "T1-FG-01-03 must FAIL on comment-only declarations, got {:?}",
+        c
+    );
 }
 
 #[test]
@@ -389,8 +475,14 @@ fn test_negative_r4_secret_leak_fails_t3_27_and_t4_s12() {
         let report = run_tiers(&cfg).unwrap();
         let t3_27 = report.results.iter().find(|r| r.id == "T3-27").unwrap();
         let t4_s12 = report.results.iter().find(|r| r.id == "T4-S12").unwrap();
-        assert!(!t3_27.passed, "T3-27 must FAIL under {leak_mode}, got {t3_27:?}");
-        assert!(!t4_s12.passed, "T4-S12 must FAIL under {leak_mode}, got {t4_s12:?}");
+        assert!(
+            !t3_27.passed,
+            "T3-27 must FAIL under {leak_mode}, got {t3_27:?}"
+        );
+        assert!(
+            !t4_s12.passed,
+            "T4-S12 must FAIL under {leak_mode}, got {t4_s12:?}"
+        );
     }
 }
 
@@ -447,7 +539,10 @@ fn test_negative_mutating_bypass_fails_tier3() {
     })
     .unwrap();
     let t3_28 = sys_report.results.iter().find(|r| r.id == "T3-28").unwrap();
-    assert!(!t3_28.passed, "T3-28 must FAIL when mutating tool executes under ReadOnlyOnly");
+    assert!(
+        !t3_28.passed,
+        "T3-28 must FAIL when mutating tool executes under ReadOnlyOnly"
+    );
 
     let net_report = run_tiers(&TierRunConfig {
         guap_root: guap_root.path().to_path_buf(),
@@ -483,7 +578,11 @@ fn test_negative_malformed_mcp_missing_32700_fails_tier2() {
         skip_cargo_build: true,
     })
     .unwrap();
-    let t2_05 = report.results.iter().find(|r| r.id == "T2-FG-13-05").unwrap();
+    let t2_05 = report
+        .results
+        .iter()
+        .find(|r| r.id == "T2-FG-13-05")
+        .unwrap();
     assert!(
         !t2_05.passed,
         "T2-FG-13-05 must FAIL when MCP server does not return -32700 on malformed JSON"
@@ -502,25 +601,41 @@ fn test_resolve_binary_prefers_debug_over_newer_release_when_building() {
         &net_dir.join("crates/net2rust-cli/Cargo.toml"),
         "[package]\nname = \"net2rust-cli\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[[bin]]\nname = \"net2rust\"\npath = \"src/main.rs\"\n",
     );
-    write_file(&net_dir.join("crates/net2rust-cli/src/main.rs"), "fn main() {}\n");
+    write_file(
+        &net_dir.join("crates/net2rust-cli/src/main.rs"),
+        "fn main() {}\n",
+    );
 
     let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
-    let rel_bin = net_dir.join("target/release").join(format!("net2rust{exe_suffix}"));
+    let rel_bin = net_dir
+        .join("target/release")
+        .join(format!("net2rust{exe_suffix}"));
     write_file(&rel_bin, "STALE_RELEASE_BINARY");
     let future = std::time::SystemTime::now() + std::time::Duration::from_secs(120);
-    let file = std::fs::OpenOptions::new().write(true).open(&rel_bin).unwrap();
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&rel_bin)
+        .unwrap();
     file.set_modified(future).unwrap();
 
     let mut session = WorkspaceSession::new(root.path().to_path_buf(), false);
-    let resolved = session.resolve_binary(TargetWorkspace::Net2Rust).unwrap().unwrap();
-    let expected_debug = net_dir.join("target/debug").join(format!("net2rust{exe_suffix}"));
+    let resolved = session
+        .resolve_binary(TargetWorkspace::Net2Rust)
+        .unwrap()
+        .unwrap();
+    let expected_debug = net_dir
+        .join("target/debug")
+        .join(format!("net2rust{exe_suffix}"));
     assert_eq!(resolved, expected_debug);
     assert!(resolved.is_file());
 }
 
 #[test]
 fn test_export_verify_bom_and_post_quote_trailing_chars() {
-    assert!(parse_rfc4180_csv(b"\"a\"trailing,b\r\n").is_err(), "trailing chars after closing quote must fail");
+    assert!(
+        parse_rfc4180_csv(b"\"a\"trailing,b\r\n").is_err(),
+        "trailing chars after closing quote must fail"
+    );
     let bom_quoted = "\u{FEFF}\"abc\",def\r\n".as_bytes();
     assert_eq!(
         parse_rfc4180_csv(bom_quoted).unwrap(),
@@ -648,7 +763,11 @@ fn test_single_workspace_isolation_ignores_broken_foreign_binaries() {
             skip_cargo_build: true,
         })
         .unwrap();
-        let s06 = mail_report.results.iter().find(|r| r.id == "T4-S06").unwrap();
+        let s06 = mail_report
+            .results
+            .iter()
+            .find(|r| r.id == "T4-S06")
+            .unwrap();
         assert!(
             s06.passed,
             "Single-workspace Mail2Rust T4-S06 must PASS even when chrome2rust fails, got {s06:?}"
@@ -665,7 +784,11 @@ fn test_single_workspace_isolation_ignores_broken_foreign_binaries() {
             skip_cargo_build: true,
         })
         .unwrap();
-        let s14 = sys_report.results.iter().find(|r| r.id == "T4-S14").unwrap();
+        let s14 = sys_report
+            .results
+            .iter()
+            .find(|r| r.id == "T4-S14")
+            .unwrap();
         assert!(
             s14.passed,
             "Single-workspace Sys2Rust T4-S14 must PASS even when fs2rust fails, got {s14:?}"
@@ -752,12 +875,17 @@ fn test_resolve_binary_repropagates_cached_build_error() {
     );
 
     let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
-    let stale_bin = net_dir.join("target/debug").join(format!("net2rust{exe_suffix}"));
+    let stale_bin = net_dir
+        .join("target/debug")
+        .join(format!("net2rust{exe_suffix}"));
     write_file(&stale_bin, "STALE_BINARY_SHOULD_NOT_BE_RETURNED");
 
     let mut session = WorkspaceSession::new(root.path().to_path_buf(), false);
     let first = session.resolve_binary(TargetWorkspace::Net2Rust);
-    assert!(first.is_err(), "first resolve_binary must propagate build failure");
+    assert!(
+        first.is_err(),
+        "first resolve_binary must propagate build failure"
+    );
     let second = session.resolve_binary(TargetWorkspace::Net2Rust);
     assert!(
         second.is_err(),
@@ -770,7 +898,10 @@ fn test_net2rust_sockets_and_wol_mutating_schemas() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let guap_root = setup_mock_guap_root(true);
     let mut session = WorkspaceSession::new(guap_root.path().to_path_buf(), true);
-    let tools = session.cached_mcp_tools(TargetWorkspace::Net2Rust).unwrap().unwrap();
+    let tools = session
+        .cached_mcp_tools(TargetWorkspace::Net2Rust)
+        .unwrap()
+        .unwrap();
 
     let close = tools
         .iter()

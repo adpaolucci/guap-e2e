@@ -1,10 +1,10 @@
+use anyhow::{Context, Result};
+use regex::Regex;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use anyhow::{Context, Result};
-use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::R4Violation;
@@ -22,7 +22,8 @@ pub fn discover_binaries(guap_root: &Path) -> Result<Vec<PathBuf>> {
         .into_iter()
         .filter_entry(|e| should_visit_binary_tree(guap_root, e))
     {
-        let entry = entry.with_context(|| format!("walking binaries in {}", guap_root.display()))?;
+        let entry =
+            entry.with_context(|| format!("walking binaries in {}", guap_root.display()))?;
         if !entry.file_type().is_file() {
             continue;
         }
@@ -79,7 +80,8 @@ fn should_visit_binary_tree(guap_root: &Path, entry: &DirEntry) -> bool {
                 // Inside target/<triple>/{debug,release}, do not allow subdirs of target/debug or target/release
                 !parent.eq_ignore_ascii_case("debug")
                     && !parent.eq_ignore_ascii_case("release")
-                    && (child.eq_ignore_ascii_case("debug") || child.eq_ignore_ascii_case("release"))
+                    && (child.eq_ignore_ascii_case("debug")
+                        || child.eq_ignore_ascii_case("release"))
             }
             _ => false,
         };
@@ -182,7 +184,8 @@ fn scan_single_binary(
         ) {
             continue;
         }
-        if rule.def.kind == RuleKind::LegacyAcm && registry.acm_audio_context_regex.is_match(&stem) {
+        if rule.def.kind == RuleKind::LegacyAcm && registry.acm_audio_context_regex.is_match(&stem)
+        {
             continue;
         }
         for (_, _, matched) in registry.find_all_matches(idx, &stem) {
@@ -192,12 +195,18 @@ fn scan_single_binary(
                 path: bin_path.to_path_buf(),
                 line: None,
                 matched_symbol: matched,
-                detail: format!("Binary filename matches prohibited R4 tool ({})", rule.def.description),
+                detail: format!(
+                    "Binary filename matches prohibited R4 tool ({})",
+                    rule.def.description
+                ),
             });
         }
     }
 
-    let path_norm_lower = bin_path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    let path_norm_lower = bin_path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_ascii_lowercase();
     let stem_lower = stem.to_ascii_lowercase();
     let is_winctl_bin = path_norm_lower.contains("winctl2rust");
     let is_winctl_desktop_bin = is_winctl_bin
@@ -211,8 +220,8 @@ fn scan_single_binary(
     let is_sys2rust_bin = path_norm_lower.contains("sys2rust");
     let is_net2rust_bin = path_norm_lower.contains("net2rust");
 
-    let mut file = File::open(bin_path)
-        .with_context(|| format!("opening binary {}", bin_path.display()))?;
+    let mut file =
+        File::open(bin_path).with_context(|| format!("opening binary {}", bin_path.display()))?;
     let mut buf = vec![0u8; CHUNK_SIZE + OVERLAP_SIZE];
     let mut carry_len = 0usize;
     let mut prev_ascii_cont = false;
@@ -308,10 +317,7 @@ fn scan_single_binary(
         {
             saw_sys2rust_shell_ro_vae = true;
         }
-        if is_sys2rust_bin
-            && !saw_sys2rust_shell_crate
-            && strings_buf.contains("sys2rust_shell")
-        {
+        if is_sys2rust_bin && !saw_sys2rust_shell_crate && strings_buf.contains("sys2rust_shell") {
             saw_sys2rust_shell_crate = true;
         }
         if !saw_winsafe_hproc_wpm
@@ -329,7 +335,9 @@ fn scan_single_binary(
         {
             saw_windows_crate_wpm = true;
         }
-        if !saw_non_winsafe_wpm_line && contains_ascii_ci(strings_buf.as_bytes(), b"writeprocessmemory") {
+        if !saw_non_winsafe_wpm_line
+            && contains_ascii_ci(strings_buf.as_bytes(), b"writeprocessmemory")
+        {
             for wline in strings_buf.lines() {
                 if !contains_ascii_ci(wline.as_bytes(), b"writeprocessmemory") {
                     continue;
@@ -368,7 +376,8 @@ fn scan_single_binary(
         }
 
         if is_net2rust_bin
-            && (strings_buf.contains("sanitize_wlan_profile_xml") || strings_buf.contains("redact_wlan"))
+            && (strings_buf.contains("sanitize_wlan_profile_xml")
+                || strings_buf.contains("redact_wlan"))
         {
             saw_wlan_sanitizer_fn = true;
         }
@@ -394,7 +403,8 @@ fn scan_single_binary(
                     path: bin_path.to_path_buf(),
                     line: None,
                     matched_symbol: sym,
-                    detail: "Prohibited PK11SDR_Decrypt symbol found in compiled binary".to_string(),
+                    detail: "Prohibited PK11SDR_Decrypt symbol found in compiled binary"
+                        .to_string(),
                 });
             }
         }
@@ -449,7 +459,10 @@ fn scan_single_binary(
                                 path: bin_path.to_path_buf(),
                                 line: None,
                                 matched_symbol: matched,
-                                detail: format!("Binary strings match prohibited R4 rule ({})", rule.def.description),
+                                detail: format!(
+                                    "Binary strings match prohibited R4 rule ({})",
+                                    rule.def.description
+                                ),
                             });
                         }
                     }
@@ -470,7 +483,10 @@ fn scan_single_binary(
                                 path: bin_path.to_path_buf(),
                                 line: None,
                                 matched_symbol: matched,
-                                detail: format!("Binary strings match prohibited R4 rule ({})", rule.def.description),
+                                detail: format!(
+                                    "Binary strings match prohibited R4 rule ({})",
+                                    rule.def.description
+                                ),
                             });
                         }
                     }
@@ -485,9 +501,8 @@ fn scan_single_binary(
             prev_utf16_even_cont = overlap_start >= 2
                 && buf[overlap_start - 1] == 0
                 && is_cont(buf[overlap_start - 2]);
-            prev_utf16_odd_cont = overlap_start >= 2
-                && buf[overlap_start] == 0
-                && is_cont(buf[overlap_start - 1]);
+            prev_utf16_odd_cont =
+                overlap_start >= 2 && buf[overlap_start] == 0 && is_cont(buf[overlap_start - 1]);
             buf.copy_within(overlap_start..total, 0);
             carry_len = OVERLAP_SIZE;
         } else {
@@ -515,7 +530,9 @@ fn scan_single_binary(
                 path: bin_path.to_path_buf(),
                 line: None,
                 matched_symbol: sym,
-                detail: "Unredacted <keyMaterial> or WlanGetProfile plaintext key recovery in binary".to_string(),
+                detail:
+                    "Unredacted <keyMaterial> or WlanGetProfile plaintext key recovery in binary"
+                        .to_string(),
             });
         }
     }
@@ -548,15 +565,14 @@ fn scan_single_binary(
                 path: bin_path.to_path_buf(),
                 line: None,
                 matched_symbol: sym,
-                detail: "SetWindowsHookEx in binary outside permitted winctl2rust low-level hook".to_string(),
+                detail: "SetWindowsHookEx in binary outside permitted winctl2rust low-level hook"
+                    .to_string(),
             });
         }
     }
 
-    let safe_winctl_desktop_wpm = is_winctl_desktop_bin
-        && saw_lvitem_tvitem
-        && !saw_wpm_exec_inj
-        && !saw_suspicious_hook_dll;
+    let safe_winctl_desktop_wpm =
+        is_winctl_desktop_bin && saw_lvitem_tvitem && !saw_wpm_exec_inj && !saw_suspicious_hook_dll;
     let safe_debug_winsafe_wpm = is_debug_bin
         && is_win32_gui_bin
         && saw_winsafe_hproc
@@ -752,11 +768,42 @@ fn is_benign_product_key_symbol_line(trimmed: &str, lower: &str) -> bool {
     }
 
     let dangerous_substr = [
-        "steal", "dump", "recover", "plaintext", "decrypt", "leak", "exfil", "harvest",
-        "sniff", "grab", "scrape", "capture", "save", "export", "extract", "fetch",
-        "retrieve", "decode", "transmit", "upload", "http", "to_disk", "to_file",
-        "socket", "tcp", "secret", "password", "passwd", "store", "persist",
-        "bypass", "unredacted", "siphon", "obtain", "acquire", "pull",
+        "steal",
+        "dump",
+        "recover",
+        "plaintext",
+        "decrypt",
+        "leak",
+        "exfil",
+        "harvest",
+        "sniff",
+        "grab",
+        "scrape",
+        "capture",
+        "save",
+        "export",
+        "extract",
+        "fetch",
+        "retrieve",
+        "decode",
+        "transmit",
+        "upload",
+        "http",
+        "to_disk",
+        "to_file",
+        "socket",
+        "tcp",
+        "secret",
+        "password",
+        "passwd",
+        "store",
+        "persist",
+        "bypass",
+        "unredacted",
+        "siphon",
+        "obtain",
+        "acquire",
+        "pull",
     ]
     .iter()
     .any(|v| lower.contains(v));
@@ -841,9 +888,13 @@ fn is_benign_product_key_symbol_line(trimmed: &str, lower: &str) -> bool {
             let suffix_ok = lower[idx..].starts_with("productkeyasidlist")
                 && is_exact_symbol_right_boundary(&lower[idx + "productkeyasidlist".len()..]);
             let prefix_ok = (prefix.ends_with("windows::win32::ui::shell::shchange")
-                && is_exact_module_left_boundary(&prefix[..prefix.len() - "windows::win32::ui::shell::shchange".len()]))
+                && is_exact_module_left_boundary(
+                    &prefix[..prefix.len() - "windows::win32::ui::shell::shchange".len()],
+                ))
                 || (prefix.ends_with("windows_sys::win32::ui::shell::shchange")
-                    && is_exact_module_left_boundary(&prefix[..prefix.len() - "windows_sys::win32::ui::shell::shchange".len()]));
+                    && is_exact_module_left_boundary(
+                        &prefix[..prefix.len() - "windows_sys::win32::ui::shell::shchange".len()],
+                    ));
             if !(prefix_ok && suffix_ok) {
                 all_demangled_ok = false;
                 break;
@@ -1127,9 +1178,15 @@ fn has_v0_shchange_pk_v0(lower: &str) -> bool {
             || rem
                 .strip_prefix("11write_bytes")
                 .is_some_and(|r| r.starts_with('b') && r.ends_with('_'))
-            || rem.strip_prefix("e6zeroed").is_some_and(is_v0_closure_or_end_suffix)
-            || rem.strip_prefix("e10as_mut_ptr").is_some_and(is_v0_closure_or_end_suffix)
-            || rem.strip_prefix("e11assume_init").is_some_and(is_v0_closure_or_end_suffix)
+            || rem
+                .strip_prefix("e6zeroed")
+                .is_some_and(is_v0_closure_or_end_suffix)
+            || rem
+                .strip_prefix("e10as_mut_ptr")
+                .is_some_and(is_v0_closure_or_end_suffix)
+            || rem
+                .strip_prefix("e11assume_init")
+                .is_some_and(is_v0_closure_or_end_suffix)
             || (rem.starts_with("ntntcs")
                 && (rem.ends_with("4core7default7default7default")
                     || rem.ends_with("4core5clone5clone5clone")));
@@ -1344,7 +1401,10 @@ fn strip_stdlib_in_place_collect(lower: &str) -> String {
         out = out.replace("write_in_place_with_drop", "");
         out = out.replace("alloc::vec::in_place_collect", "alloc::vec::");
         out = out.replace("5alloc3vec16in_place_collect", "5alloc3vec");
-        out = out.replace("16in_place_collect18from_iter_in_place", "18from_iter_in_place");
+        out = out.replace(
+            "16in_place_collect18from_iter_in_place",
+            "18from_iter_in_place",
+        );
         out = out.replace("16in_place_collect", "");
         out = out.replace("collect_in_place<", "<");
         out = out.replace("16collect_in_place", "");
@@ -1582,7 +1642,9 @@ fn is_benign_keymaterial_symbol_line(is_net2rust_bin: bool, lower: &str) -> bool
                         if is_exact_symbol_right_boundary(&collapsed[sym_e..])
                             && sym_s >= crate_prefix.len()
                             && &collapsed[sym_s - crate_prefix.len()..sym_s] == crate_prefix
-                            && is_exact_module_left_boundary(&collapsed[..sym_s - crate_prefix.len()])
+                            && is_exact_module_left_boundary(
+                                &collapsed[..sym_s - crate_prefix.len()],
+                            )
                         {
                             found_match = Some(sym_e);
                             break;
@@ -1596,10 +1658,13 @@ fn is_benign_keymaterial_symbol_line(is_net2rust_bin: bool, lower: &str) -> bool
                             if sym_s >= len_tag.len()
                                 && collapsed[sym_s - len_tag.len()..sym_s] == *len_tag
                                 && (sym_s == len_tag.len()
-                                    || !collapsed.as_bytes()[sym_s - len_tag.len() - 1].is_ascii_digit()
+                                    || !collapsed.as_bytes()[sym_s - len_tag.len() - 1]
+                                        .is_ascii_digit()
                                     || (crate_prefix == "net2rust_core::r4::"
                                         && sym_s >= len_tag.len() + 3
-                                        && &collapsed[sym_s - len_tag.len() - 3..sym_s - len_tag.len()] == "2r4"))
+                                        && &collapsed
+                                            [sym_s - len_tag.len() - 3..sym_s - len_tag.len()]
+                                            == "2r4"))
                             {
                                 found_match = Some(sym_e);
                                 break;
@@ -1678,7 +1743,15 @@ fn is_valid_self_closing_attrs(attrs: &str) -> bool {
                     if !val.is_empty()
                         && !matches!(
                             val.as_str(),
-                            "true" | "false" | "0" | "1" | "ok" | "x/>" | "a<br>b" | "[redacted]" | "synthetic-protected-blob"
+                            "true"
+                                | "false"
+                                | "0"
+                                | "1"
+                                | "ok"
+                                | "x/>"
+                                | "a<br>b"
+                                | "[redacted]"
+                                | "synthetic-protected-blob"
                         )
                     {
                         return false;
@@ -1700,7 +1773,10 @@ fn is_valid_self_closing_attrs(attrs: &str) -> bool {
                 k_end -= 1;
             }
             let mut k_start = k_end;
-            while k_start > 0 && (bytes[k_start - 1].is_ascii_alphanumeric() || matches!(bytes[k_start - 1], b'_' | b'-' | b':')) {
+            while k_start > 0
+                && (bytes[k_start - 1].is_ascii_alphanumeric()
+                    || matches!(bytes[k_start - 1], b'_' | b'-' | b':'))
+            {
                 k_start -= 1;
             }
             let attr_key = attrs[k_start..k_end].to_ascii_lowercase();
@@ -1731,7 +1807,15 @@ fn is_valid_self_closing_attrs(attrs: &str) -> bool {
                     if !val.is_empty()
                         && !matches!(
                             val.as_str(),
-                            "true" | "false" | "0" | "1" | "ok" | "x/>" | "a<br>b" | "[redacted]" | "synthetic-protected-blob"
+                            "true"
+                                | "false"
+                                | "0"
+                                | "1"
+                                | "ok"
+                                | "x/>"
+                                | "a<br>b"
+                                | "[redacted]"
+                                | "synthetic-protected-blob"
                         )
                     {
                         return false;
@@ -1814,7 +1898,8 @@ fn find_keymaterial_tag_close(after: &str) -> Option<(usize, usize, bool)> {
         if let Some(glen) = gt_len {
             let before_gt = after[..i].trim_end();
             if let Some(attrs) = before_gt.strip_suffix('/') {
-                let valid_sc = !attrs.trim_end().ends_with('=') && is_valid_self_closing_attrs(attrs);
+                let valid_sc =
+                    !attrs.trim_end().ends_with('=') && is_valid_self_closing_attrs(attrs);
                 return Some((i, glen, valid_sc));
             }
             return Some((i, glen, false));
@@ -1913,7 +1998,10 @@ fn is_safe_keymaterial_tag_line(lower: &str) -> bool {
             if has_unapproved_diag_context(&scrub_radio_meta(before_diag)) {
                 return false;
             }
-            if matched_str.ends_with("detected") && !after_diag.is_empty() && !after_diag.starts_with('.') {
+            if matched_str.ends_with("detected")
+                && !after_diag.is_empty()
+                && !after_diag.starts_with('.')
+            {
                 return false;
             }
             let after_scrubbed = scrub_radio_meta(after_diag);
@@ -1946,7 +2034,8 @@ fn is_safe_keymaterial_tag_line(lower: &str) -> bool {
         if prefix_start > 0 && bytes[prefix_start - 1] == b':' {
             let mut p = prefix_start - 1;
             while p > 0
-                && (bytes[p - 1].is_ascii_alphanumeric() || matches!(bytes[p - 1], b'_' | b'.' | b'-'))
+                && (bytes[p - 1].is_ascii_alphanumeric()
+                    || matches!(bytes[p - 1], b'_' | b'.' | b'-'))
             {
                 p -= 1;
             }
@@ -2065,7 +2154,8 @@ fn is_safe_keymaterial_tag_line(lower: &str) -> bool {
             {
                 return false;
             }
-            if let Some((gt_rel, gt_len, is_valid_self_closing)) = find_keymaterial_tag_close(after) {
+            if let Some((gt_rel, gt_len, is_valid_self_closing)) = find_keymaterial_tag_close(after)
+            {
                 let before_gt = after[..gt_rel].trim_end();
                 if before_gt.ends_with('/') {
                     if !is_valid_self_closing {
@@ -2186,7 +2276,6 @@ fn is_known_windows_system_dll(name: &str) -> bool {
         )
 }
 
-
 struct PeSecHdr {
     virtual_size: u32,
     virtual_addr: u32,
@@ -2209,7 +2298,8 @@ fn rva_to_file_off(secs: &[PeSecHdr], rva: u32) -> Option<u64> {
 }
 
 fn read_u16_le(b: &[u8], off: usize) -> Option<u16> {
-    b.get(off..off + 2).map(|s| u16::from_le_bytes([s[0], s[1]]))
+    b.get(off..off + 2)
+        .map(|s| u16::from_le_bytes([s[0], s[1]]))
 }
 
 fn read_u32_le(b: &[u8], off: usize) -> Option<u32> {
@@ -2418,7 +2508,9 @@ fn pe_has_non_winsafe_wpm_call_sites(bin_path: &Path) -> Result<bool> {
                     let keep_name = if name_s == "WriteProcessMemory" {
                         wpm_thunk_rva = Some(rva);
                         Some(name_s.into_owned())
-                    } else if is_v0_crate_root_winsafe_hprocess(&name_s) && !name_s.starts_with("_RNC") {
+                    } else if is_v0_crate_root_winsafe_hprocess(&name_s)
+                        && !name_s.starts_with("_RNC")
+                    {
                         wpm_winsafe_starts.push(rva);
                         Some(name_s.into_owned())
                     } else {
@@ -2571,23 +2663,38 @@ fn pe_has_non_winsafe_wpm_call_sites(bin_path: &Path) -> Result<bool> {
 
             for i in 0..chunk_len {
                 let insn_rva = base_rva.saturating_add(i as u32);
-                let in_thunk = wpm_thunk_rva
-                    .is_some_and(|t| insn_rva >= t && insn_rva < t.saturating_add(8));
+                let in_thunk =
+                    wpm_thunk_rva.is_some_and(|t| insn_rva >= t && insn_rva < t.saturating_add(8));
                 let in_winsafe = winsafe_wpm_ranges
                     .iter()
                     .any(|&(ws, we)| insn_rva >= ws && insn_rva < we);
 
-                if i + 6 <= read_len && bytes[i] == 0xFF && (bytes[i + 1] == 0x15 || bytes[i + 1] == 0x25) {
-                    let disp = i32::from_le_bytes([bytes[i + 2], bytes[i + 3], bytes[i + 4], bytes[i + 5]]);
+                if i + 6 <= read_len
+                    && bytes[i] == 0xFF
+                    && (bytes[i + 1] == 0x15 || bytes[i + 1] == 0x25)
+                {
+                    let disp = i32::from_le_bytes([
+                        bytes[i + 2],
+                        bytes[i + 3],
+                        bytes[i + 4],
+                        bytes[i + 5],
+                    ]);
                     let target = insn_rva.wrapping_add(6).wrapping_add(disp as u32);
                     if target == wpm_iat_rva && !in_thunk && !in_winsafe {
                         return Ok(true);
                     }
                 } else if i + 5 <= read_len && (bytes[i] == 0xE8 || bytes[i] == 0xE9) {
-                    let rel = i32::from_le_bytes([bytes[i + 1], bytes[i + 2], bytes[i + 3], bytes[i + 4]]);
+                    let rel = i32::from_le_bytes([
+                        bytes[i + 1],
+                        bytes[i + 2],
+                        bytes[i + 3],
+                        bytes[i + 4],
+                    ]);
                     let target = insn_rva.wrapping_add(5).wrapping_add(rel as u32);
-                    let targets_thunk = wpm_thunk_rva.is_some_and(|t| target == t) && !in_thunk && !in_winsafe;
-                    let targets_winsafe = winsafe_wpm_ranges.iter().any(|&(ws, _)| target == ws) && !in_winsafe;
+                    let targets_thunk =
+                        wpm_thunk_rva.is_some_and(|t| target == t) && !in_thunk && !in_winsafe;
+                    let targets_winsafe =
+                        winsafe_wpm_ranges.iter().any(|&(ws, _)| target == ws) && !in_winsafe;
                     if targets_thunk || targets_winsafe {
                         return Ok(true);
                     }
@@ -2596,12 +2703,20 @@ fn pe_has_non_winsafe_wpm_call_sites(bin_path: &Path) -> Result<bool> {
                     && (bytes[i + 1] == 0x8D || bytes[i + 1] == 0x8B)
                     && (bytes[i + 2] & 0xC7) == 0x05
                 {
-                    let disp = i32::from_le_bytes([bytes[i + 3], bytes[i + 4], bytes[i + 5], bytes[i + 6]]);
+                    let disp = i32::from_le_bytes([
+                        bytes[i + 3],
+                        bytes[i + 4],
+                        bytes[i + 5],
+                        bytes[i + 6],
+                    ]);
                     let target = insn_rva.wrapping_add(7).wrapping_add(disp as u32);
                     let targets_iat = target == wpm_iat_rva && !in_thunk && !in_winsafe;
-                    let targets_thunk = wpm_thunk_rva.is_some_and(|t| target == t) && !in_thunk && !in_winsafe;
-                    let targets_winsafe = winsafe_wpm_ranges.iter().any(|&(ws, _)| target == ws) && !in_winsafe;
-                    let targets_wpm_str = wpm_str_rvas.contains(&target) && !in_thunk && !in_winsafe;
+                    let targets_thunk =
+                        wpm_thunk_rva.is_some_and(|t| target == t) && !in_thunk && !in_winsafe;
+                    let targets_winsafe =
+                        winsafe_wpm_ranges.iter().any(|&(ws, _)| target == ws) && !in_winsafe;
+                    let targets_wpm_str =
+                        wpm_str_rvas.contains(&target) && !in_thunk && !in_winsafe;
                     if targets_iat || targets_thunk || targets_winsafe || targets_wpm_str {
                         return Ok(true);
                     }

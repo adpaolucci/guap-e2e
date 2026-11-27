@@ -12,12 +12,12 @@ pub mod sys_fs;
 pub mod util;
 pub mod winctl;
 
+use crate::util::{FIXED_ISO_TIMESTAMP, sha256_hex, write_file_deterministic};
+use anyhow::{Context, Result, ensure};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use anyhow::{ensure, Context, Result};
-use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
-use crate::util::{sha256_hex, write_file_deterministic, FIXED_ISO_TIMESTAMP};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MaterializedFixtures {
@@ -181,16 +181,24 @@ fn verify_r4_zero_credentials(fixtures: &MaterializedFixtures) -> Result<String>
             let text_utf8 = String::from_utf8_lossy(&bytes);
             let decode_utf16le = |slice: &[u8]| -> String {
                 let u16s: Vec<u16> = slice
-                    .as_chunks::<2>().0.iter()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|&c| u16::from_le_bytes(c))
                     .collect();
                 String::from_utf16_lossy(&u16s)
             };
             let text_utf16_even = decode_utf16le(&bytes);
-            let text_utf16_odd = if bytes.len() > 1 { decode_utf16le(&bytes[1..]) } else { String::new() };
+            let text_utf16_odd = if bytes.len() > 1 {
+                decode_utf16le(&bytes[1..])
+            } else {
+                String::new()
+            };
             for pat in &forbidden {
                 ensure!(
-                    !text_utf8.contains(pat) && !text_utf16_even.contains(pat) && !text_utf16_odd.contains(pat),
+                    !text_utf8.contains(pat)
+                        && !text_utf16_even.contains(pat)
+                        && !text_utf16_odd.contains(pat),
                     "R4 violation in valid fixture {}: matched {:?}",
                     entry.path().display(),
                     pat
@@ -199,10 +207,15 @@ fn verify_r4_zero_credentials(fixtures: &MaterializedFixtures) -> Result<String>
             scanned += 1;
         }
     }
-    Ok(format!("R4 zero-credential scan: {} valid fixture files clean", scanned))
+    Ok(format!(
+        "R4 zero-credential scan: {} valid fixture files clean",
+        scanned
+    ))
 }
 
-pub fn verify_fixture_integrity(fixtures: &MaterializedFixtures) -> Result<FixtureVerificationReport> {
+pub fn verify_fixture_integrity(
+    fixtures: &MaterializedFixtures,
+) -> Result<FixtureVerificationReport> {
     let manifest_path = fixtures.root.join("fixture_manifest.json");
     let manifest: FixtureManifest = serde_json::from_slice(
         &std::fs::read(&manifest_path).with_context(|| "missing fixture_manifest.json")?,
@@ -319,7 +332,11 @@ mod tests {
         let fixtures = materialize_all(dir.path()).unwrap();
         let report = verify_fixture_integrity(&fixtures).unwrap();
         assert!(report.all_verified());
-        assert!(report.total_files >= 60, "expected >= 60 files, got {}", report.total_files);
+        assert!(
+            report.total_files >= 60,
+            "expected >= 60 files, got {}",
+            report.total_files
+        );
         assert_eq!(report.verified_files, report.total_files);
     }
 
@@ -332,7 +349,10 @@ mod tests {
 
         let man_a = std::fs::read(dir_a.path().join("fixture_manifest.json")).unwrap();
         let man_b = std::fs::read(dir_b.path().join("fixture_manifest.json")).unwrap();
-        assert_eq!(man_a, man_b, "fixture_manifest.json must be byte-identical across runs");
+        assert_eq!(
+            man_a, man_b,
+            "fixture_manifest.json must be byte-identical across runs"
+        );
     }
 
     #[test]

@@ -1,12 +1,12 @@
+use anyhow::Result;
+use regex::Regex;
+use serde_json::Value;
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use anyhow::Result;
-use regex::Regex;
-use serde_json::Value;
 
 use crate::R4Violation;
 use crate::rules::{RuleKind, RuleRegistry};
@@ -32,9 +32,7 @@ struct RunOutput {
 
 fn run_with_timeout(exe: &Path, args: &[&str], stdin_payload: Option<&[u8]>) -> RunOutput {
     let mut cmd = Command::new(exe);
-    cmd.args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
     if stdin_payload.is_some() {
         cmd.stdin(Stdio::piped());
     } else {
@@ -159,7 +157,10 @@ pub fn scan_cli_and_mcp(
             .file_stem()
             .map(|s| s.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
-        let norm_lower = exe.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+        let norm_lower = exe
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_ascii_lowercase();
         let is_chrome_bin = stem_lower.starts_with("chrome2rust")
             || norm_lower
                 .split('/')
@@ -446,7 +447,8 @@ fn is_safe_keymaterial_redaction_span(text: &str, m_start: usize, m_end: usize) 
     let clause_before = &text[c_start..m_start.min(text.len())];
     let clause_after = &text[m_end.min(text.len())..c_end];
 
-    let locally_bound = km_after_bound_re().is_match(after) || km_before_bound_re().is_match(clause_before);
+    let locally_bound =
+        km_after_bound_re().is_match(after) || km_before_bound_re().is_match(clause_before);
     if !locally_bound {
         return false;
     }
@@ -564,7 +566,10 @@ fn is_help_options_header(line: &str, lower: &str) -> bool {
         || lower == "global options:"
         || lower == "arguments:"
         || lower == "args:"
-        || (unindented && (lower.ends_with("options:") || lower.ends_with("flags:") || lower.ends_with("arguments:")))
+        || (unindented
+            && (lower.ends_with("options:")
+                || lower.ends_with("flags:")
+                || lower.ends_with("arguments:")))
 }
 
 fn extract_bracket_label_tokens(line: &str, label: &str) -> Vec<String> {
@@ -576,9 +581,8 @@ fn extract_bracket_label_tokens(line: &str, label: &str) -> Vec<String> {
         if let Some(end_rel) = lower[start..].find(']') {
             let inner = &line[start..start + end_rel];
             for item in inner.split(|c: char| c == ',' || c.is_ascii_whitespace()) {
-                let clean = item.trim_matches(|c: char| {
-                    !c.is_ascii_alphanumeric() && c != '_' && c != '-'
-                });
+                let clean =
+                    item.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-');
                 if !clean.is_empty() {
                     out.push(clean.to_string());
                 }
@@ -651,7 +655,11 @@ fn scan_help_text(
         };
 
         if is_chrome_bin && !trimmed.is_empty() {
-            if in_options_section || in_usage_section || trimmed.starts_with(['-', '<', '[']) || is_usage_line {
+            if in_options_section
+                || in_usage_section
+                || trimmed.starts_with(['-', '<', '['])
+                || is_usage_line
+            {
                 let mut iter_tokens = trimmed.split_whitespace().peekable();
                 if is_usage_line {
                     let _ = iter_tokens.next();
@@ -689,7 +697,9 @@ fn scan_help_text(
                             });
                         }
                         if let Some(eq_val) = clean_punct.split_once('=').map(|(_, v)| v) {
-                            let inner = eq_val.trim_matches(|c: char| matches!(c, '<' | '>' | '[' | ']' | ',' | '.'));
+                            let inner = eq_val.trim_matches(|c: char| {
+                                matches!(c, '<' | '>' | '[' | ']' | ',' | '.')
+                            });
                             if !inner.is_empty() && chrome_new_cred_id_re.is_match(inner) {
                                 violations.push(R4Violation {
                                     category: "baseline_chrome".to_string(),
@@ -704,7 +714,8 @@ fn scan_help_text(
                     } else if (no_var.starts_with('<') && no_var.ends_with('>'))
                         || (no_var.starts_with('[') && no_var.ends_with(']'))
                     {
-                        let inner = no_var.trim_matches(|c: char| matches!(c, '<' | '>' | '[' | ']' | ',' | '.'));
+                        let inner = no_var
+                            .trim_matches(|c: char| matches!(c, '<' | '>' | '[' | ']' | ',' | '.'));
                         if !inner.is_empty() && chrome_new_cred_id_re.is_match(inner) {
                             violations.push(R4Violation {
                                 category: "baseline_chrome".to_string(),
@@ -716,7 +727,9 @@ fn scan_help_text(
                             });
                         }
                     } else if in_usage_section || is_usage_line {
-                        let inner = clean_punct.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-');
+                        let inner = clean_punct.trim_matches(|c: char| {
+                            !c.is_ascii_alphanumeric() && c != '_' && c != '-'
+                        });
                         if !inner.is_empty()
                             && !CHROME2RUST_BASELINE_MCP_TOOLS.contains(&inner)
                             && chrome_new_cred_id_re.is_match(inner)
@@ -745,7 +758,9 @@ fn scan_help_text(
                         path: exe.to_path_buf(),
                         line: Some(line_no),
                         matched_symbol: tok,
-                        detail: "chrome2rust CLI --help exposes prohibited credential/login alias/env".to_string(),
+                        detail:
+                            "chrome2rust CLI --help exposes prohibited credential/login alias/env"
+                                .to_string(),
                     });
                 }
             }
@@ -798,23 +813,24 @@ fn scan_help_text(
             }
         }
 
-        let flag_spans: Vec<(usize, usize)> = if in_listing_section || trimmed.starts_with('-') || is_usage_line {
-            let mut spans = Vec::new();
-            let mut scan_pos = 0usize;
-            for tok in trimmed.split_whitespace() {
-                if let Some(rel) = line[scan_pos..].find(tok) {
-                    let ts = scan_pos + rel;
-                    let te = ts + tok.len();
-                    if tok.starts_with('-') {
-                        spans.push((ts, te));
+        let flag_spans: Vec<(usize, usize)> =
+            if in_listing_section || trimmed.starts_with('-') || is_usage_line {
+                let mut spans = Vec::new();
+                let mut scan_pos = 0usize;
+                for tok in trimmed.split_whitespace() {
+                    if let Some(rel) = line[scan_pos..].find(tok) {
+                        let ts = scan_pos + rel;
+                        let te = ts + tok.len();
+                        if tok.starts_with('-') {
+                            spans.push((ts, te));
+                        }
+                        scan_pos = te;
                     }
-                    scan_pos = te;
                 }
-            }
-            spans
-        } else {
-            Vec::new()
-        };
+                spans
+            } else {
+                Vec::new()
+            };
 
         let cmd_col_end = cmd_col_prefix.and_then(|c| line.find(c).map(|p| p + c.len()));
 
@@ -1062,7 +1078,9 @@ fn scan_mcp_payload(
         }
         for (rule_idx, m_start, m_end, matched) in registry.scan_all_source_matches(line) {
             let rule = &registry.rules[rule_idx];
-            if rule.def.kind == RuleKind::LegacyAcm && registry.acm_audio_context_regex.is_match(line) {
+            if rule.def.kind == RuleKind::LegacyAcm
+                && registry.acm_audio_context_regex.is_match(line)
+            {
                 continue;
             }
             if is_negated_exclusion_at_span(line, m_start, m_end, rule.def.rule_id, &matched) {
@@ -1079,7 +1097,8 @@ fn scan_mcp_payload(
         }
         if is_chrome_bin {
             for tok in line.split_whitespace() {
-                let clean = tok.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-');
+                let clean =
+                    tok.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-');
                 if !clean.is_empty()
                     && !CHROME2RUST_BASELINE_MCP_TOOLS.contains(&clean)
                     && chrome_new_cred_id_re.is_match(clean)
@@ -1142,8 +1161,7 @@ fn is_exact_baseline_decrypt_prop_desc(tool_name: &str, path_stack: &[String], d
     }
     (tool_name == "chrome2rust_analyze"
         && desc == "Enable optional best-effort decryption (Cookies / Login Data)")
-        || (tool_name == "chrome2rust_report"
-            && desc == "Enable optional best-effort decryption")
+        || (tool_name == "chrome2rust_report" && desc == "Enable optional best-effort decryption")
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1175,7 +1193,10 @@ fn check_mcp_description_text(
             path: exe.to_path_buf(),
             line: None,
             matched_symbol: matched,
-            detail: format!("MCP tool `{tool_name}` {field_label} violation: {}", rule.def.description),
+            detail: format!(
+                "MCP tool `{tool_name}` {field_label} violation: {}",
+                rule.def.description
+            ),
         });
     }
 
@@ -1302,7 +1323,8 @@ fn scan_mcp_value(
                 let ctx = format!("MCP `{field_label}`");
                 check_strict_mcp_text(exe, text, &ctx, registry, violations);
                 if is_chrome_bin
-                    && (chrome_new_cred_id_re.is_match(text) || chrome_new_cred_desc_re.is_match(text))
+                    && (chrome_new_cred_id_re.is_match(text)
+                        || chrome_new_cred_desc_re.is_match(text))
                 {
                     violations.push(R4Violation {
                         category: "baseline_chrome".to_string(),
@@ -1388,7 +1410,10 @@ fn check_strict_mcp_text(
             path: exe.to_path_buf(),
             line: None,
             matched_symbol: matched,
-            detail: format!("{context_label} `{text}` matches prohibited R4 rule ({})", rule.def.description),
+            detail: format!(
+                "{context_label} `{text}` matches prohibited R4 rule ({})",
+                rule.def.description
+            ),
         });
     }
 }

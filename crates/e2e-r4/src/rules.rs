@@ -156,7 +156,9 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             description: "Windows Credential Vault enumeration/retrieval APIs",
             kind: RuleKind::Standard,
             inner_pattern: r"vault[-_ ]?(?:enumerate[-_ ]?items|get[-_ ]?item|enumerate[-_ ]?vaults|open[-_ ]?vault)",
-            binary_inner_pattern: Some(r"vault[-_ ]?(?:enumerate[-_ ]?items|get[-_ ]?item|enumerate[-_ ]?vaults|open[-_ ]?vault)"),
+            binary_inner_pattern: Some(
+                r"vault[-_ ]?(?:enumerate[-_ ]?items|get[-_ ]?item|enumerate[-_ ]?vaults|open[-_ ]?vault)",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
@@ -189,7 +191,9 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             description: "Wi-Fi plaintext key recovery (WLAN_PROFILE_GET_PLAINTEXT_KEY / keyMaterial)",
             kind: RuleKind::Standard,
             inner_pattern: r"wlan[-_ ]?profile[-_ ]?get[-_ ]?plaintext[-_ ]?key|WlanGetProfile\s*\([^;]*0x[0_]*4(?:_?(?:u|i)(?:8|16|32|64|128|size))?|key_?material",
-            binary_inner_pattern: Some(r"wlan[-_ ]?profile[-_ ]?get[-_ ]?plaintext[-_ ]?key|key_?material"),
+            binary_inner_pattern: Some(
+                r"wlan[-_ ]?profile[-_ ]?get[-_ ]?plaintext[-_ ]?key|key_?material",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
@@ -200,7 +204,9 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             description: "SAM/SECURITY SysKey/BootKey/PEK secret dumping",
             kind: RuleKind::ApiCredPek,
             inner_pattern: r"sys[-_ ]?key|boot[-_ ]?key|lsa[-_ ]?secret[-_ ]?decrypt|sam[-_ ]?(?:hash[-_ ]?dump|secret[-_ ]?decrypt)|nl\$km|pek[-_ ]?decrypt|(?-i:\bPEK\b)",
-            binary_inner_pattern: Some(r"sys[-_ ]?key|boot[-_ ]?key|lsa[-_ ]?secret[-_ ]?decrypt|sam[-_ ]?(?:hash[-_ ]?dump|secret[-_ ]?decrypt)|nl\$km|pek[-_ ]?decrypt"),
+            binary_inner_pattern: Some(
+                r"sys[-_ ]?key|boot[-_ ]?key|lsa[-_ ]?secret[-_ ]?decrypt|sam[-_ ]?(?:hash[-_ ]?dump|secret[-_ ]?decrypt)|nl\$km|pek[-_ ]?decrypt",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
@@ -212,7 +218,9 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             description: "Prohibited DLL injection / hooking utility (RunAsDate, SocketSniff, InjectedDLL)",
             kind: RuleKind::Standard,
             inner_pattern: r"run[-_ ]?as[-_ ]?date|socket[-_ ]?sniff|injected[-_ ]?dll",
-            binary_inner_pattern: Some(r"run[-_ ]?as[-_ ]?date|socket[-_ ]?sniff|injected[-_ ]?dll"),
+            binary_inner_pattern: Some(
+                r"run[-_ ]?as[-_ ]?date|socket[-_ ]?sniff|injected[-_ ]?dll",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
@@ -223,7 +231,9 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             description: "Remote thread, APC, detour, MinHook, or IAT patching API",
             kind: RuleKind::Standard,
             inner_pattern: r"create[-_ ]?remote[-_ ]?thread(?:[-_ ]?ex)?|nt[-_ ]?create[-_ ]?thread[-_ ]?ex|rtl[-_ ]?create[-_ ]?user[-_ ]?thread|queue[-_ ]?user[-_ ]?apc|detour[-_ ]?attach|detour[-_ ]?transaction[-_ ]?begin|mh[-_ ]?create[-_ ]?hook|(?:iat[-_ ]?(?:patch|hook)|(?:patch|hook)[-_ ]?iat)[a-z0-9_]*",
-            binary_inner_pattern: Some(r"create[-_ ]?remote[-_ ]?thread(?:[-_ ]?ex)?|nt[-_ ]?create[-_ ]?thread[-_ ]?ex|rtl[-_ ]?create[-_ ]?user[-_ ]?thread|queue[-_ ]?user[-_ ]?apc|detour[-_ ]?attach|detour[-_ ]?transaction[-_ ]?begin|mh[-_ ]?create[-_ ]?hook|(?:iat[-_ ]?(?:patch|hook)|(?:patch|hook)[-_ ]?iat)[a-z0-9_]*"),
+            binary_inner_pattern: Some(
+                r"create[-_ ]?remote[-_ ]?thread(?:[-_ ]?ex)?|nt[-_ ]?create[-_ ]?thread[-_ ]?ex|rtl[-_ ]?create[-_ ]?user[-_ ]?thread|queue[-_ ]?user[-_ ]?apc|detour[-_ ]?attach|detour[-_ ]?transaction[-_ ]?begin|mh[-_ ]?create[-_ ]?hook|(?:iat[-_ ]?(?:patch|hook)|(?:patch|hook)[-_ ]?iat)[a-z0-9_]*",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
@@ -234,7 +244,9 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             description: "External-DLL SetWindowsHookEx (WH_CBT/WH_GETMESSAGE/WH_CALLWNDPROC)",
             kind: RuleKind::InjSetWindowsHookEx,
             inner_pattern: r"set[-_ ]?windows[-_ ]?hook[-_ ]?ex(?:[-_ ]?[wa]|[wa])?|wh_cbt|wh_getmessage|wh_callwndproc(?:ret)?",
-            binary_inner_pattern: Some(r"set[-_ ]?windows[-_ ]?hook[-_ ]?ex(?:[-_ ]?[wa]|[wa])?|wh_cbt|wh_getmessage|wh_callwndproc(?:ret)?"),
+            binary_inner_pattern: Some(
+                r"set[-_ ]?windows[-_ ]?hook[-_ ]?ex(?:[-_ ]?[wa]|[wa])?|wh_cbt|wh_getmessage|wh_callwndproc(?:ret)?",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
@@ -251,54 +263,236 @@ pub fn all_rule_defs() -> Vec<RuleDef> {
             allow_negation_in_strings: true,
         },
         // 13..51. All 39 Retired Legacy Tools (R4-LEGACY-01..39)
-        legacy_rule("R4-LEGACY-01", "IECacheView", r"ie[-_ ]?cache[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-02", "IEHistoryView", r"ie[-_ ]?history[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-03", "IECookiesView", r"ie[-_ ]?cookies[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-04", "IEHV / IESessionView", r"iehv|ie[-_ ]?session[-_ ]?view", Some(r"iehv\.exe|--iehv|ie[-_ ]?session[-_ ]?view")),
-        legacy_rule("R4-LEGACY-05", "IEDownloadView", r"ie[-_ ]?download[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-06", "IEPassView", r"ie[-_ ]?pass[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-07", "URLStringGrabber", r"url[-_ ]?string[-_ ]?grabber", None),
-        legacy_rule("R4-LEGACY-08", "FavoritesView", r"favorites[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-09", "WebVideoCap", r"web[-_ ]?video[-_ ]?cap", None),
-        legacy_rule("R4-LEGACY-10", "FlashCookiesView", r"flash[-_ ]?cookies[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-11", "RTMPDumpHelper", r"rtmp[-_ ]?dump[-_ ]?helper", None),
-        legacy_rule("R4-LEGACY-12", "ActiveXHelper", r"active[-_ ]?x[-_ ]?helper", None),
+        legacy_rule(
+            "R4-LEGACY-01",
+            "IECacheView",
+            r"ie[-_ ]?cache[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-02",
+            "IEHistoryView",
+            r"ie[-_ ]?history[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-03",
+            "IECookiesView",
+            r"ie[-_ ]?cookies[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-04",
+            "IEHV / IESessionView",
+            r"iehv|ie[-_ ]?session[-_ ]?view",
+            Some(r"iehv\.exe|--iehv|ie[-_ ]?session[-_ ]?view"),
+        ),
+        legacy_rule(
+            "R4-LEGACY-05",
+            "IEDownloadView",
+            r"ie[-_ ]?download[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-06",
+            "IEPassView",
+            r"ie[-_ ]?pass[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-07",
+            "URLStringGrabber",
+            r"url[-_ ]?string[-_ ]?grabber",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-08",
+            "FavoritesView",
+            r"favorites[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-09",
+            "WebVideoCap",
+            r"web[-_ ]?video[-_ ]?cap",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-10",
+            "FlashCookiesView",
+            r"flash[-_ ]?cookies[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-11",
+            "RTMPDumpHelper",
+            r"rtmp[-_ ]?dump[-_ ]?helper",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-12",
+            "ActiveXHelper",
+            r"active[-_ ]?x[-_ ]?helper",
+            None,
+        ),
         RuleDef {
             rule_id: "R4-LEGACY-13",
             category: "legacy_tool",
             description: "Retired legacy tool: ActiveX Compatibility Manager (acm)",
             kind: RuleKind::LegacyAcm,
             inner_pattern: r"active[-_ ]?x[-_ ]?compatibility[-_ ]?manager|acm",
-            binary_inner_pattern: Some(r"active[-_ ]?x[-_ ]?compatibility[-_ ]?manager|acm\.exe|--acm"),
+            binary_inner_pattern: Some(
+                r"active[-_ ]?x[-_ ]?compatibility[-_ ]?manager|acm\.exe|--acm",
+            ),
             case_sensitive: false,
             allow_negation_in_comments: true,
             allow_negation_in_strings: true,
         },
-        legacy_rule("R4-LEGACY-14", "Win9x PassView (win9xpv)", r"win[-_ ]?9x[-_ ]?pass[-_ ]?view|win9xpv", None),
-        legacy_rule("R4-LEGACY-15", "9xProtect / Win9x tools", r"9x[-_ ]?protect|win9x[-_]?(?:protect|pass|pwl|tool|utility|hook|view)", None),
-        legacy_rule("R4-LEGACY-16", "MSNPass / MessenPass", r"msn[-_ ]?pass|messen[-_ ]?pass", None),
-        legacy_rule("R4-LEGACY-17", "SkypeLogView", r"skype[-_ ]?log[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-18", "SkypeContactsView", r"skype[-_ ]?contacts[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-19", "pcANYWHERECIF / PassView", r"pcanywhere[-_ ]?cif|pcanywhere[-_ ]?pass[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-20", "AccessPassView (accesspv)", r"access[-_ ]?pass[-_ ]?view|accesspv", None),
-        legacy_rule("R4-LEGACY-21", "OEView / DBXtract", r"oe[-_ ]?view|db[-_ ]?xtract", None),
-        legacy_rule("R4-LEGACY-22", "Windows Live Mail PassView (wlmpv)", r"windows[-_ ]?live[-_ ]?mail[-_ ]?pass[-_ ]?view|wlmpv", None),
-        legacy_rule("R4-LEGACY-23", "NetscapeCacheView / NSHistoryView", r"netscape[-_ ]?cache[-_ ]?view|ns[-_ ]?history[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-24", "PaltalkPass / MirandaPass", r"paltalk[-_ ]?pass|miranda[-_ ]?pass", None),
-        legacy_rule("R4-LEGACY-25", "TrillianPass / PidginPass", r"trillian[-_ ]?pass|pidgin[-_ ]?pass", None),
-        legacy_rule("R4-LEGACY-26", "GoogleTalkPass / GizmoPass", r"google[-_ ]?talk[-_ ]?pass|gizmo[-_ ]?pass", None),
-        legacy_rule("R4-LEGACY-27", "ICQPass / AIMPass", r"icq[-_ ]?pass|aim[-_ ]?pass", None),
-        legacy_rule("R4-LEGACY-28", "WinUpdatesList (wul)", r"win[-_ ]?updates[-_ ]?list|wul", Some(r"win[-_ ]?updates[-_ ]?list|wul\.exe|--wul")),
-        legacy_rule("R4-LEGACY-29", "DrWatsonLogView / WinXP UserDump", r"dr[-_ ]?watson[-_ ]?log[-_ ]?view|winxp[-_ ]?user[-_ ]?dump|user[-_ ]?dump", None),
-        legacy_rule("R4-LEGACY-30", "NetPass", r"net[-_ ]?pass|network[-_ ]?password[-_ ]?recovery", None),
-        legacy_rule("R4-LEGACY-31", "LiveContactsView", r"live[-_ ]?contacts[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-32", "WindowsMail / WinMailPass", r"windows[-_ ]?mail|win[-_ ]?mail[-_ ]?pass", None),
-        legacy_rule("R4-LEGACY-33", "SilverlightCache / JavaCacheView", r"silverlight[-_ ]?cache|java[-_ ]?cache[-_ ]?view", None),
+        legacy_rule(
+            "R4-LEGACY-14",
+            "Win9x PassView (win9xpv)",
+            r"win[-_ ]?9x[-_ ]?pass[-_ ]?view|win9xpv",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-15",
+            "9xProtect / Win9x tools",
+            r"9x[-_ ]?protect|win9x[-_]?(?:protect|pass|pwl|tool|utility|hook|view)",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-16",
+            "MSNPass / MessenPass",
+            r"msn[-_ ]?pass|messen[-_ ]?pass",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-17",
+            "SkypeLogView",
+            r"skype[-_ ]?log[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-18",
+            "SkypeContactsView",
+            r"skype[-_ ]?contacts[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-19",
+            "pcANYWHERECIF / PassView",
+            r"pcanywhere[-_ ]?cif|pcanywhere[-_ ]?pass[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-20",
+            "AccessPassView (accesspv)",
+            r"access[-_ ]?pass[-_ ]?view|accesspv",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-21",
+            "OEView / DBXtract",
+            r"oe[-_ ]?view|db[-_ ]?xtract",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-22",
+            "Windows Live Mail PassView (wlmpv)",
+            r"windows[-_ ]?live[-_ ]?mail[-_ ]?pass[-_ ]?view|wlmpv",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-23",
+            "NetscapeCacheView / NSHistoryView",
+            r"netscape[-_ ]?cache[-_ ]?view|ns[-_ ]?history[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-24",
+            "PaltalkPass / MirandaPass",
+            r"paltalk[-_ ]?pass|miranda[-_ ]?pass",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-25",
+            "TrillianPass / PidginPass",
+            r"trillian[-_ ]?pass|pidgin[-_ ]?pass",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-26",
+            "GoogleTalkPass / GizmoPass",
+            r"google[-_ ]?talk[-_ ]?pass|gizmo[-_ ]?pass",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-27",
+            "ICQPass / AIMPass",
+            r"icq[-_ ]?pass|aim[-_ ]?pass",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-28",
+            "WinUpdatesList (wul)",
+            r"win[-_ ]?updates[-_ ]?list|wul",
+            Some(r"win[-_ ]?updates[-_ ]?list|wul\.exe|--wul"),
+        ),
+        legacy_rule(
+            "R4-LEGACY-29",
+            "DrWatsonLogView / WinXP UserDump",
+            r"dr[-_ ]?watson[-_ ]?log[-_ ]?view|winxp[-_ ]?user[-_ ]?dump|user[-_ ]?dump",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-30",
+            "NetPass",
+            r"net[-_ ]?pass|network[-_ ]?password[-_ ]?recovery",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-31",
+            "LiveContactsView",
+            r"live[-_ ]?contacts[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-32",
+            "WindowsMail / WinMailPass",
+            r"windows[-_ ]?mail|win[-_ ]?mail[-_ ]?pass",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-33",
+            "SilverlightCache / JavaCacheView",
+            r"silverlight[-_ ]?cache|java[-_ ]?cache[-_ ]?view",
+            None,
+        ),
         legacy_rule("R4-LEGACY-34", "SiteShoter", r"site[-_ ]?shoter", None),
-        legacy_rule("R4-LEGACY-35", "HtmlDocEdit", r"html[-_ ]?doc[-_ ]?edit", None),
-        legacy_rule("R4-LEGACY-36", "WebBrowserPassView", r"web[-_ ]?browser[-_ ]?pass[-_ ]?view", None),
-        legacy_rule("R4-LEGACY-37", "SysTrayRefresh / TaskbarHide", r"sys[-_ ]?tray[-_ ]?refresh|taskbar[-_ ]?hide", None),
-        legacy_rule("R4-LEGACY-38", "FastCache / IndexDatView", r"fast[-_ ]?cache|index[-_ ]?dat[-_ ]?view", None),
+        legacy_rule(
+            "R4-LEGACY-35",
+            "HtmlDocEdit",
+            r"html[-_ ]?doc[-_ ]?edit",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-36",
+            "WebBrowserPassView",
+            r"web[-_ ]?browser[-_ ]?pass[-_ ]?view",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-37",
+            "SysTrayRefresh / TaskbarHide",
+            r"sys[-_ ]?tray[-_ ]?refresh|taskbar[-_ ]?hide",
+            None,
+        ),
+        legacy_rule(
+            "R4-LEGACY-38",
+            "FastCache / IndexDatView",
+            r"fast[-_ ]?cache|index[-_ ]?dat[-_ ]?view",
+            None,
+        ),
         legacy_rule(
             "R4-LEGACY-39",
             "SmartFTP/CuteFTP/FileZilla/WS_FTP/FlashFXP PassView",
@@ -377,9 +571,8 @@ impl RuleRegistry {
         let negated_assertion_regex = Regex::new(
             r"(?i)(?:assert!\s*\(\s*!|assert_eq!\s*\([^,]+,\s*false|!\s*[A-Za-z0-9_.:()]+\s*\.\s*contains\s*\(|assert\s+not\b|self\.assertFalse|self\.assertNotIn)",
         )?;
-        let cargo_hook_dep_regex = Regex::new(
-            r"(?i)^(?:detour|retour|minhook(?:-rs)?|ilhook|hudhook)$",
-        )?;
+        let cargo_hook_dep_regex =
+            Regex::new(r"(?i)^(?:detour|retour|minhook(?:-rs)?|ilhook|hudhook)$")?;
         let pek_context_regex = Regex::new(
             r"(?i)\b(?:SAM|LSA|SECURITY|BootKey|Boot_?Key|SysKey|Sys_?Key|RC4|pek_decrypt)\b",
         )?;
@@ -389,22 +582,18 @@ impl RuleRegistry {
         let acm_standalone_id_regex = Regex::new(
             r#"(?i)(?:#\[command\([^)]*(?:name|alias)\s*=\s*"acm"|Subcommand::Acm\b|"name"\s*:\s*"acm"|tool_id\s*[:=]\s*"acm"|command_id\s*[:=]\s*"acm"|\b(?:pub(?:\s*\([^)]*\))?\s+)?(?:async\s+)?fn\s+acm\b)"#,
         )?;
-        let hook_dangerous_const_regex = Regex::new(
-            r"(?i)\b(?:WH_CBT|WH_GETMESSAGE|WH_CALLWNDPROC|WH_CALLWNDPROCRET)\b",
-        )?;
-        let hook_ll_const_regex = Regex::new(
-            r"(?i)\b(?:WH_MOUSE_LL|WH_KEYBOARD_LL)\b",
-        )?;
+        let hook_dangerous_const_regex =
+            Regex::new(r"(?i)\b(?:WH_CBT|WH_GETMESSAGE|WH_CALLWNDPROC|WH_CALLWNDPROCRET)\b")?;
+        let hook_ll_const_regex = Regex::new(r"(?i)\b(?:WH_MOUSE_LL|WH_KEYBOARD_LL)\b")?;
         let hook_null_hinstance_regex = Regex::new(
             r"(?i)(?:^\s*(?:None(?:\s*::<\s*[^>]+\s*>)?|0(?:\s*as\s*_)?|(?:std::ptr::|core::ptr::)?null(?:_mut)?\s*\(\s*\)|H(?:INSTANCE|MODULE)\s*\(\s*(?:0|(?:std::ptr::|core::ptr::)?null(?:_mut)?\s*\(\s*\))\s*\)|GetModuleHandle[WA]?\s*\(\s*None\s*\))\s*$)",
         )?;
-        let wpm_struct_regex = Regex::new(
-            r"\b(?:LVITEMW|LVITEMA|TVITEMW|TVITEMA)\b",
-        )?;
+        let wpm_struct_regex = Regex::new(r"\b(?:LVITEMW|LVITEMA|TVITEMW|TVITEMA)\b")?;
         let wpm_exec_or_inj_regex = Regex::new(
             r"(?i)\b(?:PAGE_EXECUTE\w*|LoadLibrary[WA]?|CreateRemoteThread(?:Ex)?|NtCreateThreadEx|RtlCreateUserThread|QueueUserAPC|shellcode)\b",
         )?;
-        let binary_keymaterial_camel_regex = Regex::new(&wrap_boundary(r"key[-_ ]?material", false))?;
+        let binary_keymaterial_camel_regex =
+            Regex::new(&wrap_boundary(r"key[-_ ]?material", false))?;
 
         Ok(Self {
             rules,
@@ -468,10 +657,18 @@ impl RuleRegistry {
                 for (s, e, _) in Self::collect_raw_matches(&rule.source_regex, &split_text) {
                     let orig_s = orig_map[s];
                     let orig_e = orig_map[e];
-                    if orig_s < orig_e && text.is_char_boundary(orig_s) && text.is_char_boundary(orig_e) {
+                    if orig_s < orig_e
+                        && text.is_char_boundary(orig_s)
+                        && text.is_char_boundary(orig_e)
+                    {
                         let orig_matched = text[orig_s..orig_e].to_string();
-                        if !should_skip_benign_match(rule.def.rule_id, text, orig_s, orig_e, &orig_matched)
-                            && seen.insert((orig_s, orig_e))
+                        if !should_skip_benign_match(
+                            rule.def.rule_id,
+                            text,
+                            orig_s,
+                            orig_e,
+                            &orig_matched,
+                        ) && seen.insert((orig_s, orig_e))
                         {
                             results.push((orig_s, orig_e, orig_matched));
                         }
@@ -750,7 +947,10 @@ impl RuleRegistry {
                         }
                     }
                 }
-                if !mangled_buf.is_empty() && (has_camel_boundary(&mangled_buf) || has_trailing_digit_boundary(&mangled_buf)) {
+                if !mangled_buf.is_empty()
+                    && (has_camel_boundary(&mangled_buf)
+                        || has_trailing_digit_boundary(&mangled_buf))
+                {
                     let (it_split, it_map) = split_camel_and_trailing_digits_with_map(&mangled_buf);
                     if re.is_match(&it_split) {
                         for (s, e, _) in Self::collect_raw_matches(re, &it_split) {
@@ -776,9 +976,10 @@ impl RuleRegistry {
                     if rule.def.rule_id == "R4-API-CRED-05"
                         && self.binary_keymaterial_camel_regex.is_match(&it_split)
                     {
-                        for (s, e, _) in
-                            Self::collect_raw_matches(&self.binary_keymaterial_camel_regex, &it_split)
-                        {
+                        for (s, e, _) in Self::collect_raw_matches(
+                            &self.binary_keymaterial_camel_regex,
+                            &it_split,
+                        ) {
                             let bs = it_map[s];
                             let be = it_map[e];
                             if bs < be
@@ -889,7 +1090,9 @@ impl RuleRegistry {
                             rule_indices.push(r_idx);
                         }
                     }
-                    let it_split = if has_camel_boundary(&mangled_buf) || has_trailing_digit_boundary(&mangled_buf) {
+                    let it_split = if has_camel_boundary(&mangled_buf)
+                        || has_trailing_digit_boundary(&mangled_buf)
+                    {
                         let (s, m) = split_camel_and_trailing_digits_with_map(&mangled_buf);
                         for bin_idx in self.binary_set.matches(&s) {
                             let r_idx = self.binary_rule_indices[bin_idx];
@@ -968,10 +1171,9 @@ impl RuleRegistry {
                     if rule.def.rule_id == "R4-API-CRED-05"
                         && self.binary_keymaterial_camel_regex.is_match(sp_txt)
                     {
-                        for (s, e, _) in Self::collect_raw_matches(
-                            &self.binary_keymaterial_camel_regex,
-                            sp_txt,
-                        ) {
+                        for (s, e, _) in
+                            Self::collect_raw_matches(&self.binary_keymaterial_camel_regex, sp_txt)
+                        {
                             let orig_s = sp_map[s];
                             let orig_e = sp_map[e];
                             if orig_s < orig_e
@@ -1135,7 +1337,8 @@ fn is_rust_legacy_hash_suffix(bytes: &[u8], digit_start: usize) -> bool {
     while k < bytes.len() && bytes[k].is_ascii_hexdigit() {
         k += 1;
     }
-    k >= hex_start + 4 && (k == bytes.len() || bytes[k] == b'E' || !bytes[k].is_ascii_alphanumeric())
+    k >= hex_start + 4
+        && (k == bytes.len() || bytes[k] == b'E' || !bytes[k].is_ascii_alphanumeric())
 }
 
 fn push_mangled_seg(
@@ -1292,7 +1495,8 @@ fn parse_v0_path(
             }
             while *pos < bytes.len() && bytes[*pos] != b'E' && !bytes[*pos].is_ascii_whitespace() {
                 let prev = *pos;
-                if !parse_v0_generic_arg(text, bytes, pos, buf, seg_map, depth + 1) || *pos == prev {
+                if !parse_v0_generic_arg(text, bytes, pos, buf, seg_map, depth + 1) || *pos == prev
+                {
                     return false;
                 }
             }
@@ -1477,7 +1681,9 @@ fn parse_v0_type(
             *pos += 1;
             skip_base62_term(bytes, pos)
         }
-        b'C' | b'M' | b'X' | b'Y' | b'N' | b'I' => parse_v0_path(text, bytes, pos, buf, seg_map, depth + 1),
+        b'C' | b'M' | b'X' | b'Y' | b'N' | b'I' => {
+            parse_v0_path(text, bytes, pos, buf, seg_map, depth + 1)
+        }
         _ => false,
     }
 }
@@ -1496,7 +1702,10 @@ fn extract_v0_segments(
     }
     if digits > pos
         && digits < bytes.len()
-        && matches!(bytes[digits], b'C' | b'M' | b'X' | b'Y' | b'N' | b'I' | b'B')
+        && matches!(
+            bytes[digits],
+            b'C' | b'M' | b'X' | b'Y' | b'N' | b'I' | b'B'
+        )
     {
         pos = digits;
     }
@@ -1547,7 +1756,10 @@ fn extract_itanium_segments(
         }
     }
 
-    if !matches!(bytes[pos], b'N' | b'L' | b'Z' | b'T' | b'I' | b'S' | b'U' | b'F') {
+    if !matches!(
+        bytes[pos],
+        b'N' | b'L' | b'Z' | b'T' | b'I' | b'S' | b'U' | b'F'
+    ) {
         return pos.max(start + 2);
     }
 
@@ -1636,7 +1848,10 @@ fn extract_itanium_segments(
                 pos += 1;
                 if bytes.get(pos) == Some(&b'_') {
                     pos += 1;
-                } else if bytes.get(pos).is_some_and(|b| b.is_ascii_digit() || b.is_ascii_uppercase()) {
+                } else if bytes
+                    .get(pos)
+                    .is_some_and(|b| b.is_ascii_digit() || b.is_ascii_uppercase())
+                {
                     while pos < bytes.len()
                         && (bytes[pos].is_ascii_digit() || bytes[pos].is_ascii_uppercase())
                     {
@@ -1699,7 +1914,9 @@ fn map_mangled_match(
     s: usize,
     e: usize,
 ) -> Option<(usize, usize)> {
-    let idx = seg_map.partition_point(|&(bs, _, _)| bs <= s).checked_sub(1)?;
+    let idx = seg_map
+        .partition_point(|&(bs, _, _)| bs <= s)
+        .checked_sub(1)?;
     let (bs, be, orig_s) = seg_map[idx];
     if s >= bs && e <= be {
         Some((orig_s + (s - bs), orig_s + (e - bs)))
@@ -1725,7 +1942,8 @@ fn split_camel_and_hash_with_map(text: &str) -> (String, Vec<usize>) {
                         && bytes.get(idx + 1).is_some_and(u8::is_ascii_lowercase))
                     || (prev.is_ascii_alphabetic()
                         && cur.is_ascii_digit()
-                        && (is_rust_legacy_hash_suffix(bytes, idx) || is_trailing_digit_run(bytes, idx)))
+                        && (is_rust_legacy_hash_suffix(bytes, idx)
+                            || is_trailing_digit_run(bytes, idx)))
             } else {
                 false
             };
@@ -1754,7 +1972,10 @@ fn split_camel_and_hash_with_map(text: &str) -> (String, Vec<usize>) {
                 true
             }
             (Some(p), Some(c), _)
-                if p.is_ascii_alphabetic() && c.is_ascii_digit() && (is_rust_legacy_hash_suffix(bytes, idx) || is_trailing_digit_run(bytes, idx)) =>
+                if p.is_ascii_alphabetic()
+                    && c.is_ascii_digit()
+                    && (is_rust_legacy_hash_suffix(bytes, idx)
+                        || is_trailing_digit_run(bytes, idx)) =>
             {
                 true
             }
@@ -1793,7 +2014,8 @@ fn split_binary_boundaries_with_map(text: &str) -> (String, Vec<usize>) {
                     || (prev.is_ascii_digit() && cur.is_ascii_uppercase())
                     || (prev.is_ascii_alphabetic()
                         && cur.is_ascii_digit()
-                        && (is_rust_legacy_hash_suffix(bytes, idx) || is_trailing_digit_run(bytes, idx)))
+                        && (is_rust_legacy_hash_suffix(bytes, idx)
+                            || is_trailing_digit_run(bytes, idx)))
             } else {
                 false
             };
@@ -1823,7 +2045,10 @@ fn split_binary_boundaries_with_map(text: &str) -> (String, Vec<usize>) {
             }
             (Some(p), Some(c), _) if p.is_ascii_digit() && c.is_ascii_uppercase() => true,
             (Some(p), Some(c), _)
-                if p.is_ascii_alphabetic() && c.is_ascii_digit() && (is_rust_legacy_hash_suffix(bytes, idx) || is_trailing_digit_run(bytes, idx)) =>
+                if p.is_ascii_alphabetic()
+                    && c.is_ascii_digit()
+                    && (is_rust_legacy_hash_suffix(bytes, idx)
+                        || is_trailing_digit_run(bytes, idx)) =>
             {
                 true
             }
@@ -1860,7 +2085,6 @@ fn has_camel_boundary(text: &str) -> bool {
     false
 }
 
-
 fn split_camel_and_trailing_digits_with_map(text: &str) -> (String, Vec<usize>) {
     let bytes = text.as_bytes();
     let mut split_text = String::with_capacity(text.len() + 16);
@@ -1879,7 +2103,9 @@ fn split_camel_and_trailing_digits_with_map(text: &str) -> (String, Vec<usize>) 
                 true
             }
             (Some(p), Some(c), _)
-                if p.is_ascii_alphabetic() && c.is_ascii_digit() && is_trailing_digit_run(bytes, idx) =>
+                if p.is_ascii_alphabetic()
+                    && c.is_ascii_digit()
+                    && is_trailing_digit_run(bytes, idx) =>
             {
                 true
             }
@@ -1975,30 +2201,31 @@ fn should_skip_benign_match(
             "dispatchsyskey",
         ];
         let is_exact_ui_syskey = UI_SYSKEY_EXACT.contains(&full_ident.as_str());
-        let is_mangled_ui_syskey = (orig_ident.starts_with("_R") || orig_ident.starts_with("_Z")) && {
-            let (mbuf, _) = build_mangled_segments_buf(orig_ident);
-            let has_winsafe_traits = mbuf.split_whitespace().any(|s| s == "winsafe")
-                && mbuf.split_whitespace().any(|s| s == "traits");
-            let from_gui_crate = mbuf.split_whitespace().any(|s| {
-                let sl = s.to_ascii_lowercase();
-                sl == "winsafe"
-                    || sl.ends_with("_win32")
-                    || sl.ends_with("-win32")
-                    || sl.starts_with("winctl2rust")
-                    || sl.starts_with("guap_gui")
-            });
-            from_gui_crate
-                && !mbuf.is_empty()
-                && mbuf
-                    .split_whitespace()
-                    .any(|seg| UI_SYSKEY_EXACT.contains(&seg.to_ascii_lowercase().as_str()))
-                && !mbuf.split_whitespace().any(|seg| {
-                    !(has_winsafe_traits
-                        && (seg.eq_ignore_ascii_case("msgsend")
-                            || seg.eq_ignore_ascii_case("msgsendrecv")))
-                        && has_syskey_offensive_context(seg)
-                })
-        };
+        let is_mangled_ui_syskey = (orig_ident.starts_with("_R") || orig_ident.starts_with("_Z"))
+            && {
+                let (mbuf, _) = build_mangled_segments_buf(orig_ident);
+                let has_winsafe_traits = mbuf.split_whitespace().any(|s| s == "winsafe")
+                    && mbuf.split_whitespace().any(|s| s == "traits");
+                let from_gui_crate = mbuf.split_whitespace().any(|s| {
+                    let sl = s.to_ascii_lowercase();
+                    sl == "winsafe"
+                        || sl.ends_with("_win32")
+                        || sl.ends_with("-win32")
+                        || sl.starts_with("winctl2rust")
+                        || sl.starts_with("guap_gui")
+                });
+                from_gui_crate
+                    && !mbuf.is_empty()
+                    && mbuf
+                        .split_whitespace()
+                        .any(|seg| UI_SYSKEY_EXACT.contains(&seg.to_ascii_lowercase().as_str()))
+                    && !mbuf.split_whitespace().any(|seg| {
+                        !(has_winsafe_traits
+                            && (seg.eq_ignore_ascii_case("msgsend")
+                                || seg.eq_ignore_ascii_case("msgsendrecv")))
+                            && has_syskey_offensive_context(seg)
+                    })
+            };
         if (is_exact_ui_syskey || is_mangled_ui_syskey)
             && !has_syskey_offensive_context(&full_ident)
             && !has_syskey_offensive_context(text)
@@ -2048,23 +2275,8 @@ pub(crate) fn has_syskey_offensive_context(text: &str) -> bool {
     };
     let lower = scan_text.to_ascii_lowercase();
     if [
-        "bootkey",
-        "boot_key",
-        "secret",
-        "decrypt",
-        "dump",
-        "steal",
-        "extract",
-        "exfil",
-        "fetch",
-        "retrieve",
-        "grab",
-        "harvest",
-        "leak",
-        "recover",
-        "upload",
-        "transmit",
-        "decode",
+        "bootkey", "boot_key", "secret", "decrypt", "dump", "steal", "extract", "exfil", "fetch",
+        "retrieve", "grab", "harvest", "leak", "recover", "upload", "transmit", "decode",
     ]
     .iter()
     .any(|kw| lower.contains(kw))

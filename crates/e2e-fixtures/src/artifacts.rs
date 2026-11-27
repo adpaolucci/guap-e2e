@@ -1,11 +1,14 @@
-﻿use std::path::Path;
-use anyhow::{ensure, Result};
 use crate::util::{
-    read_u16_le, read_u32_le, utf16le_bytes, utf16le_nul, write_file_deterministic, FIXED_FILETIME,
+    FIXED_FILETIME, read_u16_le, read_u32_le, utf16le_bytes, utf16le_nul, write_file_deterministic,
 };
+use anyhow::{Result, ensure};
+use std::path::Path;
 
 pub fn encode_ms_xca_huffman(raw: &[u8]) -> Result<Vec<u8>> {
-    ensure!(raw.len() <= 65536, "single-chunk XPRESS Huffman input > 64 KiB");
+    ensure!(
+        raw.len() <= 65536,
+        "single-chunk XPRESS Huffman input > 64 KiB"
+    );
     let mut out = Vec::with_capacity(8 + 256 + raw.len() + 16);
     out.extend_from_slice(b"MAM\x04");
     out.extend_from_slice(&(raw.len() as u32).to_le_bytes());
@@ -61,7 +64,11 @@ pub fn decode_ms_xca_huffman(data: &[u8]) -> Result<Vec<u8>> {
     ensure!(data.len() >= 8 + 256 + 4, "MAM payload too short");
     ensure!(&data[0..4] == b"MAM\x04", "bad MAM\\x04 magic");
     let uncomp_len = read_u32_le(data, 4)? as usize;
-    ensure!(uncomp_len <= 65536, "unexpected uncompressed size {}", uncomp_len);
+    ensure!(
+        uncomp_len <= 65536,
+        "unexpected uncompressed size {}",
+        uncomp_len
+    );
 
     let mut lengths = [0u8; 512];
     for (i, &byte) in data[8..264].iter().enumerate() {
@@ -77,7 +84,11 @@ pub fn decode_ms_xca_huffman(data: &[u8]) -> Result<Vec<u8>> {
             kraft += 1u32 << (15 - l as u32);
         }
     }
-    ensure!(kraft == (1u32 << 15), "Huffman table Kraft sum mismatch: {}", kraft);
+    ensure!(
+        kraft == (1u32 << 15),
+        "Huffman table Kraft sum mismatch: {}",
+        kraft
+    );
 
     // Build canonical code lookup (code, len, sym)
     let mut codes = Vec::new();
@@ -124,12 +135,25 @@ pub fn decode_ms_xca_huffman(data: &[u8]) -> Result<Vec<u8>> {
         if sym == 256 {
             break;
         }
-        ensure!(sym < 256, "unexpected LZ77 match symbol {} in literal stream", sym);
+        ensure!(
+            sym < 256,
+            "unexpected LZ77 match symbol {} in literal stream",
+            sym
+        );
         out.push(sym as u8);
-        ensure!(out.len() <= uncomp_len, "decompressed output exceeded {}", uncomp_len);
+        ensure!(
+            out.len() <= uncomp_len,
+            "decompressed output exceeded {}",
+            uncomp_len
+        );
     }
 
-    ensure!(out.len() == uncomp_len, "decompressed {} != {}", out.len(), uncomp_len);
+    ensure!(
+        out.len() == uncomp_len,
+        "decompressed {} != {}",
+        out.len(),
+        uncomp_len
+    );
     Ok(out)
 }
 
@@ -144,9 +168,13 @@ fn build_scca_v30_prefetch(exe_name: &str, hash: u32, run_count: u32) -> Vec<u8>
     header[0x4C..0x50].copy_from_slice(&hash.to_le_bytes());
 
     let mut sec_c = Vec::new();
-    let s1 = utf16le_nul(r"\VOLUME{01D90001-0000-0000-0000-000000000001}\WINDOWS\SYSTEM32\NTDLL.DLL");
+    let s1 =
+        utf16le_nul(r"\VOLUME{01D90001-0000-0000-0000-000000000001}\WINDOWS\SYSTEM32\NTDLL.DLL");
     let s2_off = s1.len() as u32;
-    let s2 = utf16le_nul(&format!(r"\VOLUME{{01D90001-0000-0000-0000-000000000001}}\TOOLS\{}", exe_name));
+    let s2 = utf16le_nul(&format!(
+        r"\VOLUME{{01D90001-0000-0000-0000-000000000001}}\TOOLS\{}",
+        exe_name
+    ));
     sec_c.extend_from_slice(&s1);
     sec_c.extend_from_slice(&s2);
 
@@ -256,7 +284,8 @@ pub fn build_sample_lnk(target: &str, args: &str) -> Vec<u8> {
     id_list_body.push(0x1F);
     id_list_body.push(0x50);
     id_list_body.extend_from_slice(&[
-        0xE0, 0x4F, 0xD0, 0x20, 0xEA, 0x3A, 0x69, 0x10, 0xA2, 0xD8, 0x08, 0x00, 0x2B, 0x30, 0x30, 0x9D,
+        0xE0, 0x4F, 0xD0, 0x20, 0xEA, 0x3A, 0x69, 0x10, 0xA2, 0xD8, 0x08, 0x00, 0x2B, 0x30, 0x30,
+        0x9D,
     ]);
     // 0x2F C:\
     let mut vol = vec![0u8; 25];
@@ -410,7 +439,16 @@ fn build_automatic_destinations_cfb(lnk_payload: &[u8]) -> Vec<u8> {
     // Sector 1: Directory (4 x 128B entries)
     let mut dir = Vec::with_capacity(512);
     let no = 0xFFFF_FFFFu32;
-    dir.extend_from_slice(&cfb_dir_entry("Root Entry", 5, 1, no, no, 1, 0xFFFF_FFFE, 0));
+    dir.extend_from_slice(&cfb_dir_entry(
+        "Root Entry",
+        5,
+        1,
+        no,
+        no,
+        1,
+        0xFFFF_FFFE,
+        0,
+    ));
     dir.extend_from_slice(&cfb_dir_entry("DestList", 2, 1, 2, no, no, 2, 4096));
     dir.extend_from_slice(&cfb_dir_entry("1", 2, 0, no, no, no, 10, 4096));
     dir.extend_from_slice(&cfb_dir_entry("", 0, 0, no, no, no, 0, 0));
@@ -432,17 +470,26 @@ pub fn generate_artifacts_dir(artifacts_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(artifacts_dir)?;
 
     let pf_uncomp = build_scca_v30_prefetch("FORENSICS_SAMPLE.EXE", 0x1234_ABCD, 7);
-    write_file_deterministic(&artifacts_dir.join("DEMO_UNCOMPRESSED-1234ABCD.pf"), &pf_uncomp)?;
+    write_file_deterministic(
+        &artifacts_dir.join("DEMO_UNCOMPRESSED-1234ABCD.pf"),
+        &pf_uncomp,
+    )?;
 
     let pf_for_comp = build_scca_v30_prefetch("FORENSICS_COMPRESSED.EXE", 0x5678_EF01, 4);
     let pf_comp = encode_ms_xca_huffman(&pf_for_comp)?;
     write_file_deterministic(&artifacts_dir.join("DEMO_COMPRESSED-5678EF01.pf"), &pf_comp)?;
 
-    let lnk = build_sample_lnk(r"C:\Tools\forensics_sample.exe", "--case C:\\Cases\\report.docx");
+    let lnk = build_sample_lnk(
+        r"C:\Tools\forensics_sample.exe",
+        "--case C:\\Cases\\report.docx",
+    );
     write_file_deterministic(&artifacts_dir.join("ForensicsSample.lnk"), &lnk)?;
 
     let jl = build_automatic_destinations_cfb(&lnk);
-    write_file_deterministic(&artifacts_dir.join("1b4dd67f29cb1962.automaticDestinations-ms"), &jl)?;
+    write_file_deterministic(
+        &artifacts_dir.join("1b4dd67f29cb1962.automaticDestinations-ms"),
+        &jl,
+    )?;
 
     let setupapi = "\
 [Device Install Log]
@@ -476,37 +523,67 @@ pub fn verify_artifacts_dir(artifacts_dir: &Path) -> Result<(usize, Vec<String>)
 
     // 1. Uncompressed SCCA v30
     let pf_u = std::fs::read(artifacts_dir.join("DEMO_UNCOMPRESSED-1234ABCD.pf"))?;
-    ensure!(read_u32_le(&pf_u, 0)? == 30 && &pf_u[4..8] == b"SCCA", "bad uncompressed .pf header");
-    ensure!(read_u32_le(&pf_u, 0x0C)? as usize == pf_u.len(), "bad uncompressed .pf size");
+    ensure!(
+        read_u32_le(&pf_u, 0)? == 30 && &pf_u[4..8] == b"SCCA",
+        "bad uncompressed .pf header"
+    );
+    ensure!(
+        read_u32_le(&pf_u, 0x0C)? as usize == pf_u.len(),
+        "bad uncompressed .pf size"
+    );
     ensure!(read_u32_le(&pf_u, 0xD0)? == 7, "bad run_count");
     details.push("artifacts/DEMO_UNCOMPRESSED-1234ABCD.pf: SCCA v30 verified".into());
 
     // 2. MAM\x04 compressed + round-trip decompress
     let pf_c = std::fs::read(artifacts_dir.join("DEMO_COMPRESSED-5678EF01.pf"))?;
     let decomp = decode_ms_xca_huffman(&pf_c)?;
-    ensure!(read_u32_le(&decomp, 0)? == 30 && &decomp[4..8] == b"SCCA", "decompressed MAM != SCCA v30");
-    ensure!(read_u32_le(&decomp, 0x0C)? as usize == decomp.len(), "decompressed SCCA size mismatch");
-    details.push(format!("artifacts/DEMO_COMPRESSED-5678EF01.pf: MAM\\x04 -> {}B SCCA verified", decomp.len()));
+    ensure!(
+        read_u32_le(&decomp, 0)? == 30 && &decomp[4..8] == b"SCCA",
+        "decompressed MAM != SCCA v30"
+    );
+    ensure!(
+        read_u32_le(&decomp, 0x0C)? as usize == decomp.len(),
+        "decompressed SCCA size mismatch"
+    );
+    details.push(format!(
+        "artifacts/DEMO_COMPRESSED-5678EF01.pf: MAM\\x04 -> {}B SCCA verified",
+        decomp.len()
+    ));
 
     // 3. LNK
     let lnk = std::fs::read(artifacts_dir.join("ForensicsSample.lnk"))?;
     ensure!(read_u32_le(&lnk, 0)? == 0x4C, "bad LNK header size");
     ensure!(read_u16_le(&lnk, 0x40)? == 0x0641, "bad LNK wHotKey");
-    ensure!(lnk.ends_with(&[0, 0, 0, 0]), "LNK missing ExtraData terminal block");
+    ensure!(
+        lnk.ends_with(&[0, 0, 0, 0]),
+        "LNK missing ExtraData terminal block"
+    );
     details.push("artifacts/ForensicsSample.lnk: MS-SHLLINK verified".into());
 
     // 4. JumpList CFBF
     let jl = std::fs::read(artifacts_dir.join("1b4dd67f29cb1962.automaticDestinations-ms"))?;
-    ensure!(jl[0..8] == [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1], "bad CFBF magic");
+    ensure!(
+        jl[0..8] == [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1],
+        "bad CFBF magic"
+    );
     ensure!(read_u16_le(&jl, 0x1E)? == 9, "bad CFBF SectorShift");
     ensure!(read_u32_le(&jl, 512)? == 0xFFFF_FFFD, "bad CFBF FAT[0]");
     ensure!(read_u32_le(&jl, 3 * 512)? == 4, "bad DestList v4 version");
-    ensure!(read_u32_le(&jl, 11 * 512)? == 0x4C, "CFBF stream '1' missing LNK header");
-    details.push("artifacts/1b4dd67f29cb1962.automaticDestinations-ms: CFBF + DestList v4 + LNK verified".into());
+    ensure!(
+        read_u32_le(&jl, 11 * 512)? == 0x4C,
+        "CFBF stream '1' missing LNK header"
+    );
+    details.push(
+        "artifacts/1b4dd67f29cb1962.automaticDestinations-ms: CFBF + DestList v4 + LNK verified"
+            .into(),
+    );
 
     // 5. setupapi.dev.log
     let setup = std::fs::read_to_string(artifacts_dir.join("setupapi.dev.log"))?;
-    ensure!(setup.contains("[Device Install Log]") && setup.contains("USBSTOR\\DISK&VEN_SANDISK"), "bad setupapi.dev.log");
+    ensure!(
+        setup.contains("[Device Install Log]") && setup.contains("USBSTOR\\DISK&VEN_SANDISK"),
+        "bad setupapi.dev.log"
+    );
     details.push("artifacts/setupapi.dev.log: verified".into());
 
     Ok((5, details))

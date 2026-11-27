@@ -7,7 +7,11 @@ use e2e_tiers::{TargetWorkspace, Tier};
 fn test_catalog_counts_and_floor() {
     validate_catalog_invariants().expect("catalog invariants must hold");
     let checks = catalog_checks();
-    assert!(checks.len() >= 356, "coverage floor is 356, got {}", checks.len());
+    assert!(
+        checks.len() >= 356,
+        "coverage floor is 356, got {}",
+        checks.len()
+    );
     assert_eq!(checks.len(), 360);
     assert_eq!(feature_groups().len(), 31);
     assert_eq!(all_items().len(), 227);
@@ -26,7 +30,8 @@ fn test_catalog_tier_distribution_and_workspace_coverage() {
     assert_eq!(t3, 34);
     assert_eq!(t4, 16);
 
-    let workspaces: BTreeSet<TargetWorkspace> = checks.iter().map(|c| c.primary_workspace).collect();
+    let workspaces: BTreeSet<TargetWorkspace> =
+        checks.iter().map(|c| c.primary_workspace).collect();
     for ws in TargetWorkspace::concrete_workspaces() {
         assert!(
             workspaces.contains(ws),

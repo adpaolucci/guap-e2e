@@ -373,3 +373,132 @@ fn appliance_and_robocopy_live_smoke() {
     let manifest_bytes = std::fs::read(bundle_dir.join("portable-manifest.custody.json")).unwrap();
     verify_custody_manifest(&manifest_bytes, false).unwrap();
 }
+
+#[test]
+fn all_suites_mcp_annotations_and_jsonrpc_contract() {
+    let root = guap_root();
+    let specs: &[(&str, &str, &str, &[&str], usize, usize, usize)] = &[
+        (
+            "chrome2rust",
+            "chrome2rust-mcp",
+            "chrome2rust-mcp",
+            &[],
+            29,
+            29,
+            0,
+        ),
+        (
+            "android2rust",
+            "android2rust-mcp",
+            "android2rust-mcp",
+            &[],
+            13,
+            11,
+            2,
+        ),
+        (
+            "mail2rust",
+            "mail2rust-mcp",
+            "mail2rust-mcp",
+            &["--allow-mutating"],
+            15,
+            9,
+            6,
+        ),
+        (
+            "robocopy2rust",
+            "robocopy2rust-mcp",
+            "robocopy2rust-mcp",
+            &[],
+            9,
+            6,
+            3,
+        ),
+    ];
+
+    for &(dir_name, bin_name, pkg_name, _, _, _, _) in specs {
+        if !root.join(dir_name).join("Cargo.toml").is_file() {
+            eprintln!(
+                "Skipping all_suites_mcp_annotations_and_jsonrpc_contract: missing {dir_name}"
+            );
+            return;
+        }
+        let _ = (bin_name, pkg_name);
+    }
+
+    for &(dir_name, bin_name, pkg_name, extra_args, expected_total, expected_ro, expected_mut) in
+        specs
+    {
+        let ws_dir = root.join(dir_name);
+        let bin = find_or_build_binary(&ws_dir, bin_name, pkg_name);
+        let mut sess = McpSession::spawn(&bin, extra_args, &[]).unwrap();
+        sess.initialize().unwrap();
+
+        let tools = sess.tools_list().unwrap();
+        assert_eq!(
+            tools.len(),
+            expected_total,
+            "{dir_name} tool count mismatch"
+        );
+        let mut ro_count = 0usize;
+        let mut mut_count = 0usize;
+        for t in &tools {
+            let ann = t
+                .get("annotations")
+                .and_then(Value::as_object)
+                .unwrap_or_else(|| panic!("{dir_name} tool '{}' missing annotations", t["name"]));
+            let ro = ann
+                .get("readOnlyHint")
+                .and_then(Value::as_bool)
+                .unwrap_or_else(|| {
+                    panic!("{dir_name} tool '{}' missing bool readOnlyHint", t["name"])
+                });
+            assert!(
+                ann.get("destructiveHint")
+                    .and_then(Value::as_bool)
+                    .is_some(),
+                "{dir_name} tool '{}' missing bool destructiveHint",
+                t["name"]
+            );
+            if ro {
+                ro_count += 1;
+            } else {
+                mut_count += 1;
+            }
+        }
+        assert_eq!(
+            ro_count, expected_ro,
+            "{dir_name} RO annotation count mismatch"
+        );
+        assert_eq!(
+            mut_count, expected_mut,
+            "{dir_name} Mut annotation count mismatch"
+        );
+
+        let bad_json = sess.send_raw_line_and_read("{bad json").unwrap();
+        assert_eq!(
+            bad_json.pointer("/error/code"),
+            Some(&json!(-32700)),
+            "{dir_name} parse error"
+        );
+
+        let first_tool = tools[0]["name"].as_str().unwrap();
+        let bad_args = sess.tools_call(first_tool, json!("not_object")).unwrap();
+        assert_eq!(
+            bad_args.pointer("/error/code"),
+            Some(&json!(-32602)),
+            "{dir_name} -32602 check"
+        );
+
+        let unknown = sess
+            .tools_call("__nonexistent_contract_tool", json!({}))
+            .unwrap();
+        assert_eq!(
+            unknown.pointer("/error/code"),
+            Some(&json!(-32601)),
+            "{dir_name} -32601 check"
+        );
+
+        sess.close().unwrap();
+    }
+}

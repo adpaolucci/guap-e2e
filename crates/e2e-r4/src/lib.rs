@@ -3735,9 +3735,11 @@ fn main() {
                 r_n5b_syn.violations
             );
 
-            // Real rustc PE32+ binary calling WriteProcessMemory directly while embedding winsafe markers
-            let dir_pe = TempDir::new().unwrap();
-            let pe_src = r#"
+            #[cfg(windows)]
+            {
+                // Real rustc PE32+ binary calling WriteProcessMemory directly while embedding winsafe markers
+                let dir_pe = TempDir::new().unwrap();
+                let pe_src = r#"
 unsafe extern "system" {
     fn WriteProcessMemory(
         h_process: *mut core::ffi::c_void,
@@ -3758,24 +3760,25 @@ fn main() {
     std::hint::black_box(MARKERS);
 }
 "#;
-            compile_v0_exe(
-                pe_src,
-                &dir_pe
-                    .path()
-                    .join("sys2rust/target/debug/sys2rust-win32.exe"),
-                false,
-            );
-            let r_pe = run_r4_scan(&R4ScanConfig {
-                guap_root: dir_pe.path().to_path_buf(),
-                scan_binaries: true,
-                scan_cli_mcp: false,
-            })
-            .unwrap();
-            assert!(
-                !r_pe.passed && r_pe.violations.iter().any(|v| v.rule_id == "R4-INJ-04"),
-                "N5b real rustc PE with WriteProcessMemory call site must fail R4-INJ-04, got {:?}",
-                r_pe.violations
-            );
+                compile_v0_exe(
+                    pe_src,
+                    &dir_pe
+                        .path()
+                        .join("sys2rust/target/debug/sys2rust-win32.exe"),
+                    false,
+                );
+                let r_pe = run_r4_scan(&R4ScanConfig {
+                    guap_root: dir_pe.path().to_path_buf(),
+                    scan_binaries: true,
+                    scan_cli_mcp: false,
+                })
+                .unwrap();
+                assert!(
+                    !r_pe.passed && r_pe.violations.iter().any(|v| v.rule_id == "R4-INJ-04"),
+                    "N5b real rustc PE with WriteProcessMemory call site must fail R4-INJ-04, got {:?}",
+                    r_pe.violations
+                );
+            }
         }
     }
 

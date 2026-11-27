@@ -854,7 +854,7 @@ fn main() {
             .map(std::path::PathBuf::from)
             .or(workspace_parent)
             .unwrap_or_else(|| std::path::PathBuf::from(".."));
-        if !guap_root.join("guap-kit").is_dir() {
+        if !guap_root.join("guap-kit").is_dir() || !guap_root.join("chrome2rust").is_dir() {
             return;
         }
         let report = run_r4_scan(&R4ScanConfig {

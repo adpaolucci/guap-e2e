@@ -711,6 +711,25 @@ pub fn list_codecs() {
         assert!(status.success(), "mock rustc compilation failed");
     }
 
+    fn compile_mock_dylib(src: &str, out_dll: &Path) {
+        if let Some(parent) = out_dll.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let src_path = out_dll.with_extension("rs");
+        fs::write(&src_path, src).unwrap();
+        let status = Command::new("rustc")
+            .arg("--edition")
+            .arg("2024")
+            .arg("--crate-type")
+            .arg("dylib")
+            .arg(&src_path)
+            .arg("-o")
+            .arg(out_dll)
+            .status()
+            .expect("invoke rustc for mock dylib");
+        assert!(status.success(), "mock rustc dylib compilation failed");
+    }
+
     #[test]
     fn surfaces_d_and_e_cli_and_mcp_checks() {
         let dir = TempDir::new().unwrap();
@@ -2965,11 +2984,10 @@ pub fn mask_wifi_payload(xml: &str) -> String {
 #[inline(never)] pub fn RunAsDate() { println!("r"); }
 #[inline(never)] pub fn CreateRemoteThread() { println!("t"); }
 #[inline(never)] pub fn IECacheView() { println!("i"); }
-fn main() { CredEnumerateW(); RunAsDate(); CreateRemoteThread(); IECacheView(); }
 "#;
             let dir_p1 = TempDir::new().unwrap();
-            let p1_exe = dir_p1.path().join("suite/target/debug/p1_real.exe");
-            compile_mock_exe(p1_src, &p1_exe);
+            let p1_dll = dir_p1.path().join("suite/target/debug/p1_real.dll");
+            compile_mock_dylib(p1_src, &p1_dll);
             let r_p1 = scan_bins(dir_p1.path());
             for expected in ["R4-API-CRED-01", "R4-INJ-01", "R4-INJ-02", "R4-LEGACY-01"] {
                 assert!(
@@ -3084,6 +3102,7 @@ fn main() {
         }
     }
 
+    #[cfg(windows)]
     fn compile_v0_exe(src: &str, out_exe: &Path, release: bool) {
         if let Some(parent) = out_exe.parent() {
             fs::create_dir_all(parent).unwrap();
@@ -3105,6 +3124,31 @@ fn main() {
             .status()
             .expect("invoke rustc for v0 binary");
         assert!(status.success(), "rustc v0 compilation failed");
+    }
+
+    fn compile_v0_dylib(src: &str, out_dll: &Path, release: bool) {
+        if let Some(parent) = out_dll.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let src_path = out_dll.with_extension("rs");
+        fs::write(&src_path, src).unwrap();
+        let mut cmd = Command::new("rustc");
+        cmd.arg("--edition")
+            .arg("2024")
+            .arg("--crate-type")
+            .arg("dylib")
+            .arg("-C")
+            .arg("symbol-mangling-version=v0");
+        if release {
+            cmd.arg("-O");
+        }
+        let status = cmd
+            .arg(&src_path)
+            .arg("-o")
+            .arg(out_dll)
+            .status()
+            .expect("invoke rustc for v0 dylib");
+        assert!(status.success(), "rustc v0 dylib compilation failed");
     }
 
     #[test]
@@ -3483,36 +3527,29 @@ fn check_clean() {
 
     #[test]
     fn regression_iter6_rules_and_binary_probes() {
-        // N1a: real rustc --edition 2024 -C symbol-mangling-version=v0 debug and release binaries
+        // N1a: real rustc --edition 2024 -C symbol-mangling-version=v0 debug and release dylibs
         {
             let dir = TempDir::new().unwrap();
             let v0_src = r#"
 #[inline(never)]
-fn run_as_date() { std::hint::black_box(1u64); }
+pub fn run_as_date() { std::hint::black_box(1u64); }
 #[inline(never)]
-fn cred_enumerate_w() { std::hint::black_box(2u64); }
+pub fn cred_enumerate_w() { std::hint::black_box(2u64); }
 #[inline(never)]
-fn create_remote_thread() { std::hint::black_box(3u64); }
+pub fn create_remote_thread() { std::hint::black_box(3u64); }
 #[inline(never)]
-fn ie_cache_view() { std::hint::black_box(4u64); }
+pub fn ie_cache_view() { std::hint::black_box(4u64); }
 #[inline(never)]
-fn write_process_memory() { std::hint::black_box(5u64); }
-fn main() {
-    run_as_date();
-    cred_enumerate_w();
-    create_remote_thread();
-    ie_cache_view();
-    write_process_memory();
-}
+pub fn write_process_memory() { std::hint::black_box(5u64); }
 "#;
-            compile_v0_exe(
+            compile_v0_dylib(
                 v0_src,
-                &dir.path().join("suite/target/debug/v0dbg.exe"),
+                &dir.path().join("suite/target/debug/v0dbg.dll"),
                 false,
             );
-            compile_v0_exe(
+            compile_v0_dylib(
                 v0_src,
-                &dir.path().join("suite/target/release/v0rel.exe"),
+                &dir.path().join("suite/target/release/v0rel.dll"),
                 true,
             );
             let r = run_r4_scan(&R4ScanConfig {

@@ -29,6 +29,9 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
+    - name: Checkout shared guap-kit workspace
+      run: git clone --depth 1 https://github.com/adpaolucci/guap-kit.git ../guap-kit
+
     - name: Set up Rust
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -47,8 +50,8 @@ jobs:
     - name: Run Tests
       run: cargo test --workspace --verbose
 
-    - name: Run GUAP-E2E Self Check (Tier 1)
-      run: cargo run --bin guap-e2e -- --tier 1
+    - name: Run GUAP-E2E Self Check (R4 Gate)
+      run: cargo run --bin guap-e2e -- --r4-check --guap-root ../guap-kit
 
     - name: Build Release Binary
       if: runner.os != 'macOS'

@@ -376,58 +376,76 @@ fn appliance_and_robocopy_live_smoke() {
 
 #[test]
 fn all_suites_mcp_annotations_and_jsonrpc_contract() {
+    #[derive(Clone, Copy)]
+    struct SuiteMcpContractSpec {
+        dir_name: &'static str,
+        bin_name: &'static str,
+        pkg_name: &'static str,
+        extra_args: &'static [&'static str],
+        expected_total: usize,
+        expected_ro: usize,
+        expected_mut: usize,
+    }
+
     let root = guap_root();
-    let specs: &[(&str, &str, &str, &[&str], usize, usize, usize)] = &[
-        (
-            "chrome2rust",
-            "chrome2rust-mcp",
-            "chrome2rust-mcp",
-            &[],
-            29,
-            29,
-            0,
-        ),
-        (
-            "android2rust",
-            "android2rust-mcp",
-            "android2rust-mcp",
-            &[],
-            13,
-            11,
-            2,
-        ),
-        (
-            "mail2rust",
-            "mail2rust-mcp",
-            "mail2rust-mcp",
-            &["--allow-mutating"],
-            15,
-            9,
-            6,
-        ),
-        (
-            "robocopy2rust",
-            "robocopy2rust-mcp",
-            "robocopy2rust-mcp",
-            &[],
-            9,
-            6,
-            3,
-        ),
+    let specs = [
+        SuiteMcpContractSpec {
+            dir_name: "chrome2rust",
+            bin_name: "chrome2rust-mcp",
+            pkg_name: "chrome2rust-mcp",
+            extra_args: &[],
+            expected_total: 29,
+            expected_ro: 29,
+            expected_mut: 0,
+        },
+        SuiteMcpContractSpec {
+            dir_name: "android2rust",
+            bin_name: "android2rust-mcp",
+            pkg_name: "android2rust-mcp",
+            extra_args: &[],
+            expected_total: 13,
+            expected_ro: 11,
+            expected_mut: 2,
+        },
+        SuiteMcpContractSpec {
+            dir_name: "mail2rust",
+            bin_name: "mail2rust-mcp",
+            pkg_name: "mail2rust-mcp",
+            extra_args: &["--allow-mutating"],
+            expected_total: 15,
+            expected_ro: 9,
+            expected_mut: 6,
+        },
+        SuiteMcpContractSpec {
+            dir_name: "robocopy2rust",
+            bin_name: "robocopy2rust-mcp",
+            pkg_name: "robocopy2rust-mcp",
+            extra_args: &[],
+            expected_total: 9,
+            expected_ro: 6,
+            expected_mut: 3,
+        },
     ];
 
-    for &(dir_name, bin_name, pkg_name, _, _, _, _) in specs {
-        if !root.join(dir_name).join("Cargo.toml").is_file() {
+    for spec in specs {
+        if !root.join(spec.dir_name).join("Cargo.toml").is_file() {
             eprintln!(
-                "Skipping all_suites_mcp_annotations_and_jsonrpc_contract: missing {dir_name}"
+                "Skipping all_suites_mcp_annotations_and_jsonrpc_contract: missing {}",
+                spec.dir_name
             );
             return;
         }
-        let _ = (bin_name, pkg_name);
     }
 
-    for &(dir_name, bin_name, pkg_name, extra_args, expected_total, expected_ro, expected_mut) in
-        specs
+    for SuiteMcpContractSpec {
+        dir_name,
+        bin_name,
+        pkg_name,
+        extra_args,
+        expected_total,
+        expected_ro,
+        expected_mut,
+    } in specs
     {
         let ws_dir = root.join(dir_name);
         let bin = find_or_build_binary(&ws_dir, bin_name, pkg_name);

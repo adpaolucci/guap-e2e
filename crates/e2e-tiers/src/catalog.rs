@@ -1408,7 +1408,7 @@ static FG18_ITEMS: &[ItemSpec] = &[
         false,
         CliInputStyle::OmitPath,
         McpArgsKind::EmptyObject,
-        true
+        false
     ),
     item!(
         "desktop clip-hist",
@@ -1478,7 +1478,7 @@ static FG18_ITEMS: &[ItemSpec] = &[
         false,
         CliInputStyle::OmitPath,
         McpArgsKind::EmptyObject,
-        true
+        false
     ),
 ];
 static FG19_ITEMS: &[ItemSpec] = &[

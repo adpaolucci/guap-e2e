@@ -2011,7 +2011,8 @@ fn is_safe_keymaterial_tag_line(lower: &str) -> bool {
             {
                 return false;
             }
-            let is_merged_rdata_after_gated = matched_str.ends_with("gated).")
+            let is_merged_rdata_after_gated = (matched_str.ends_with("gated).")
+                || matched_str.ends_with("in exported bytes"))
                 && !lower[end_pos..].starts_with(' ')
                 && !lower[end_pos..].starts_with('\t')
                 && !has_unapproved_diag_context(&after_scrubbed);

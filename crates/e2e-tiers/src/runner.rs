@@ -3998,6 +3998,8 @@ fn verify_downstream_gui_wiring(guap_root: &Path) -> anyhow::Result<usize> {
         "net2rust",
         "sys2rust",
         "fs2rust",
+        "robocopy2rust",
+        "guap",
     ];
     for suite in suites {
         let win32_dir = guap_root

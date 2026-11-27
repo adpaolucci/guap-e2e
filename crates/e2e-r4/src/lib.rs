@@ -5469,6 +5469,7 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
             ("r7_b2c_self_closing_data", "net2rust/target/debug/p.exe", b"<keyMaterial data=\"hunter2\"/>"),
             ("r7_b3a_unanchored_pk", "sys2rust/target/debug/p.exe", b"windows_key_siphon::has_single_product_key"),
             ("r7_b3b_v0_pk_suffix", "sys2rust/target/debug/p.exe", b"_RNvC1234_7winsafe27SHChangeProductKeyAsIDList6zeroed10as_mut_ptr_evil"),
+            ("r8_diag_merged_secret", "net2rust/target/release/p.exe", b"r4 violation: unredacted <keyMaterial> value detected in exported bytesMyWifiSecret"),
         ] {
             let dir = TempDir::new().unwrap();
             let mut pe = b"MZ\x90\x00sanitize_wlan_profile_xml\0[REDACTED]\0".to_vec();
@@ -5477,6 +5478,15 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
             write_bytes(dir.path(), bin_rel, &pe);
             let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: true, scan_cli_mcp: false }).unwrap();
             assert!(!r.passed, "Binary probe `{label}` must fail, got {:?}", r.violations);
+        }
+
+        // Benign adjacent .rdata packing after diagnostic literal must pass when non-secret bytes follow
+        {
+            let dir = TempDir::new().unwrap();
+            let pe = b"MZ\x90\x00sanitize_wlan_profile_xml\0[REDACTED]\0R4 violation: unredacted <keyMaterial> value detected in exported bytesP}Z@\0";
+            write_bytes(dir.path(), "net2rust/target/release/p.exe", pe);
+            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: true, scan_cli_mcp: false }).unwrap();
+            assert!(r.passed, "Benign merged .rdata diagnostic probe must pass, got {:?}", r.violations);
         }
 
         // 3. R7-C1..C3: CLI --help and MCP --tools evasions

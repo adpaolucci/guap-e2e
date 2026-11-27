@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use e2e_fixtures::materialize_all;
-use e2e_tiers::export_verify::{verify_csv_formula_neutralization_min_rows, verify_custody_manifest};
+use e2e_tiers::export_verify::{
+    verify_csv_formula_neutralization_min_rows, verify_custody_manifest,
+};
 use e2e_tiers::mcp_client::McpSession;
 use e2e_tiers::{TargetWorkspace, Tier, TierRunConfig, run_tiers};
 use serde_json::{Value, json};
@@ -22,11 +24,17 @@ fn guap_root() -> PathBuf {
 
 fn find_or_build_binary(ws_dir: &Path, bin_name: &str, pkg: &str) -> PathBuf {
     let suffix = if cfg!(windows) { ".exe" } else { "" };
-    let debug = ws_dir.join("target").join("debug").join(format!("{bin_name}{suffix}"));
+    let debug = ws_dir
+        .join("target")
+        .join("debug")
+        .join(format!("{bin_name}{suffix}"));
     if debug.is_file() {
         return debug;
     }
-    let release = ws_dir.join("target").join("release").join(format!("{bin_name}{suffix}"));
+    let release = ws_dir
+        .join("target")
+        .join("release")
+        .join(format!("{bin_name}{suffix}"));
     if release.is_file() {
         return release;
     }
@@ -155,7 +163,10 @@ fn appliance_and_robocopy_live_smoke() {
 
     // 1) robocopy2rust CLI mcp --tools + live MCP JSON-RPC contract
     let robo_bin = find_or_build_binary(&robo_dir, "robocopy2rust", "robocopy2rust-cli");
-    let robo_tools_out = Command::new(&robo_bin).args(["mcp", "--tools"]).output().unwrap();
+    let robo_tools_out = Command::new(&robo_bin)
+        .args(["mcp", "--tools"])
+        .output()
+        .unwrap();
     assert!(
         robo_tools_out.status.success(),
         "robocopy2rust mcp --tools failed: {}",
@@ -166,20 +177,30 @@ fn appliance_and_robocopy_live_smoke() {
     for t in &robo_tools {
         let ann = t.get("annotations").and_then(Value::as_object).unwrap();
         assert!(ann.get("readOnlyHint").and_then(Value::as_bool).is_some());
-        assert!(ann.get("destructiveHint").and_then(Value::as_bool).is_some());
+        assert!(
+            ann.get("destructiveHint")
+                .and_then(Value::as_bool)
+                .is_some()
+        );
     }
 
     let mut robo_mcp = McpSession::spawn(&robo_bin, &["mcp"], &[]).unwrap();
     robo_mcp.initialize().unwrap();
     let robo_listed = robo_mcp.tools_list().unwrap();
     assert_eq!(robo_listed.len(), 9);
-    let presets_resp = robo_mcp.tools_call("robocopy2rust_presets", json!({})).unwrap();
+    let presets_resp = robo_mcp
+        .tools_call("robocopy2rust_presets", json!({}))
+        .unwrap();
     assert_eq!(presets_resp["result"]["isError"], json!(false));
     let bad_json = robo_mcp.send_raw_line_and_read("{bad json").unwrap();
     assert_eq!(bad_json.pointer("/error/code"), Some(&json!(-32700)));
-    let bad_args = robo_mcp.tools_call("robocopy2rust_presets", json!("not_object")).unwrap();
+    let bad_args = robo_mcp
+        .tools_call("robocopy2rust_presets", json!("not_object"))
+        .unwrap();
     assert_eq!(bad_args.pointer("/error/code"), Some(&json!(-32602)));
-    let unknown_tool = robo_mcp.tools_call("__nonexistent_robo_tool", json!({})).unwrap();
+    let unknown_tool = robo_mcp
+        .tools_call("__nonexistent_robo_tool", json!({}))
+        .unwrap();
     assert_eq!(unknown_tool.pointer("/error/code"), Some(&json!(-32601)));
     let safety_resp = robo_mcp
         .tools_call(
@@ -192,7 +213,9 @@ fn appliance_and_robocopy_live_smoke() {
         )
         .unwrap();
     assert_eq!(safety_resp["result"]["isError"], json!(true));
-    let safety_msg = safety_resp["result"]["content"][0]["text"].as_str().unwrap_or("");
+    let safety_msg = safety_resp["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or("");
     assert!(
         safety_msg.contains("SAFETY REFUSAL"),
         "expected SAFETY REFUSAL, got {safety_msg}"
@@ -219,7 +242,14 @@ fn appliance_and_robocopy_live_smoke() {
     assert!(st_val.get("suites").is_some());
 
     let suites_csv = Command::new(&guap_bin)
-        .args(["--offline", "--state-dir", &state_str, "suites", "--format", "csv"])
+        .args([
+            "--offline",
+            "--state-dir",
+            &state_str,
+            "suites",
+            "--format",
+            "csv",
+        ])
         .output()
         .unwrap();
     assert!(
@@ -282,7 +312,10 @@ fn appliance_and_robocopy_live_smoke() {
     let staged_val: Value = serde_json::from_str(staged_text).unwrap();
     assert_eq!(staged_val["staged"], json!(true));
     assert_eq!(
-        guap_mcp.send_raw_line_and_read("{bad json").unwrap().pointer("/error/code"),
+        guap_mcp
+            .send_raw_line_and_read("{bad json")
+            .unwrap()
+            .pointer("/error/code"),
         Some(&json!(-32700))
     );
     assert_eq!(
@@ -304,7 +337,15 @@ fn appliance_and_robocopy_live_smoke() {
     let bundle_dir = state_tmp.path().join("bundle");
     let bundle_str = bundle_dir.display().to_string();
     let create_out = Command::new(&guap_bin)
-        .args(["--offline", "--state-dir", &state_str, "bundle", "create", "--out", &bundle_str])
+        .args([
+            "--offline",
+            "--state-dir",
+            &state_str,
+            "bundle",
+            "create",
+            "--out",
+            &bundle_str,
+        ])
         .output()
         .unwrap();
     assert!(
@@ -313,7 +354,15 @@ fn appliance_and_robocopy_live_smoke() {
         String::from_utf8_lossy(&create_out.stderr)
     );
     let verify_out = Command::new(&guap_bin)
-        .args(["--offline", "--state-dir", &state_str, "bundle", "verify", "--dir", &bundle_str])
+        .args([
+            "--offline",
+            "--state-dir",
+            &state_str,
+            "bundle",
+            "verify",
+            "--dir",
+            &bundle_str,
+        ])
         .output()
         .unwrap();
     assert!(

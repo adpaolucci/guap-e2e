@@ -5485,8 +5485,17 @@ pub fn caller(xml: &str) -> String { sanitize_wlan_profile_xml(xml) }
             let dir = TempDir::new().unwrap();
             let pe = b"MZ\x90\x00sanitize_wlan_profile_xml\0[REDACTED]\0R4 violation: unredacted <keyMaterial> value detected in exported bytesP}Z@\0";
             write_bytes(dir.path(), "net2rust/target/release/p.exe", pe);
-            let r = run_r4_scan(&R4ScanConfig { guap_root: dir.path().to_path_buf(), scan_binaries: true, scan_cli_mcp: false }).unwrap();
-            assert!(r.passed, "Benign merged .rdata diagnostic probe must pass, got {:?}", r.violations);
+            let r = run_r4_scan(&R4ScanConfig {
+                guap_root: dir.path().to_path_buf(),
+                scan_binaries: true,
+                scan_cli_mcp: false,
+            })
+            .unwrap();
+            assert!(
+                r.passed,
+                "Benign merged .rdata diagnostic probe must pass, got {:?}",
+                r.violations
+            );
         }
 
         // 3. R7-C1..C3: CLI --help and MCP --tools evasions
